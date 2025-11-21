@@ -166,6 +166,116 @@ merror_t handle_v_var_shift(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_shuffle_int(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t s = reg2mreg(cdg.insn.Op2.reg);
+
+    const char *op = nullptr;
+    const char *suffix = nullptr;
+    bool has_imm = false;
+
+    switch (cdg.insn.itype) {
+        case NN_vpshufb: op = "shuffle";
+            suffix = "epi8";
+            has_imm = false;
+            break;
+        case NN_vpshufd: op = "shuffle";
+            suffix = "epi32";
+            has_imm = true;
+            break;
+        case NN_vpshufhw: op = "shufflehi";
+            suffix = "epi16";
+            has_imm = true;
+            break;
+        case NN_vpshuflw: op = "shufflelo";
+            suffix = "epi16";
+            has_imm = true;
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, suffix);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    icall.add_argument_reg(s, ti);
+
+    if (has_imm) {
+        QASSERT(0xA0605, cdg.insn.Op3.type == o_imm);
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+    } else {
+        // vpshufb: mask is Op3
+        mreg_t mask = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+        icall.add_argument_reg(mask, ti);
+    }
+
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_v_perm_int(codegen_t &cdg) {
+    // vpermq and vpermd are AVX2 (YMM)
+    int size = YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    if (cdg.insn.itype == NN_vpermq) {
+        // vpermq ymm1, ymm2/m256, imm8
+        mreg_t s = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+        QASSERT(0xA0606, cdg.insn.Op3.type == o_imm);
+
+        AVXIntrinsic icall(&cdg, "_mm256_permute4x64_epi64");
+        tinfo_t ti = get_type_robust(size, true, false);
+        icall.add_argument_reg(s, ti);
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    } else {
+        // vpermd ymm1, ymm2, ymm3/m256
+        // _mm256_permutevar8x32_epi32(src, idx)
+        // Instruction: vpermd dest, idx, src
+        mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
+        mreg_t src = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+
+        AVXIntrinsic icall(&cdg, "_mm256_permutevar8x32_epi32");
+        tinfo_t ti = get_type_robust(size, true, false);
+        icall.add_argument_reg(src, ti);
+        icall.add_argument_reg(idx, ti);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    }
+    return MERR_OK;
+}
+
+merror_t handle_v_align(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t s1 = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t s2 = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    QASSERT(0xA0607, cdg.insn.Op4.type == o_imm);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_alignr_epi8", size == YMM_SIZE ? "256" : "");
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    // _mm_alignr_epi8(a, b, n) -> concatenates a and b, shifts right by n.
+    // Instruction: vpalignr dest, src1, src2, imm8
+    // Dest = (Src1 << ...) | (Src2 >> ...)
+    // Intrinsic maps Op2 to 'a' and Op3 to 'b'.
+    icall.add_argument_reg(s1, ti);
+    icall.add_argument_reg(s2, ti);
+    icall.add_argument_imm(cdg.insn.Op4.value, BT_INT32);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vshufps(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     QASSERT(0xA0601, cdg.insn.Op4.type==o_imm);
