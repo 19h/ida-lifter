@@ -1,5 +1,5 @@
 /*
-    AVX Type Management Utilities
+ AVX Type Management Utilities
 */
 
 #pragma once
@@ -27,8 +27,8 @@ extern bool debug_logging_enabled;
 
 #define DEBUG_LOG(fmt, ...)        \
 do {                              \
-  if (debug_logging_enabled)      \
-    msg("[AVXLifter::DEBUG] " fmt "\n", ##__VA_ARGS__); \
+if (debug_logging_enabled)      \
+ msg("[AVXLifter::DEBUG] " fmt "\n", ##__VA_ARGS__); \
 } while (0)
 
 #define ERROR_LOG(fmt, ...) msg("[AVXLifter::ERROR] " fmt "\n", ##__VA_ARGS__)

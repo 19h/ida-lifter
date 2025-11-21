@@ -1,5 +1,5 @@
 /*
-    AVX Instruction Handlers
+ AVX Instruction Handlers
 */
 
 #pragma once
@@ -29,7 +29,11 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size);
 merror_t handle_v_minmax_ss_sd(codegen_t &cdg);
 merror_t handle_v_math_p(codegen_t &cdg);
 merror_t handle_vsqrtss(codegen_t &cdg);
-merror_t handle_vsqrtps(codegen_t &cdg);
+merror_t handle_vsqrt_ps_pd(codegen_t &cdg);
+merror_t handle_v_hmath(codegen_t &cdg);
+merror_t handle_v_dot(codegen_t &cdg);
+merror_t handle_vrcp_rsqrt(codegen_t &cdg);
+merror_t handle_vround(codegen_t &cdg);
 
 // Logic & Misc
 merror_t handle_v_bitwise(codegen_t &cdg);
