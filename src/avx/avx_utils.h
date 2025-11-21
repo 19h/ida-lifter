@@ -51,6 +51,10 @@ bool is_abs_insn(uint16 it);
 
 bool is_sign_insn(uint16 it);
 
+bool is_shift_insn(uint16 it);
+
+bool is_var_shift_insn(uint16 it);
+
 bool is_math_insn(uint16 it);
 
 bool is_broadcast_insn(uint16 it);

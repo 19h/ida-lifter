@@ -63,6 +63,109 @@ merror_t handle_v_bitwise(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_shift(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    // Op2 can be mem if Op3 is imm, otherwise Op2 is reg.
+    mreg_t s = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+
+    const char *op = nullptr;
+    int bits = 0;
+    switch (cdg.insn.itype) {
+        case NN_vpsllw: op = "sll";
+            bits = 16;
+            break;
+        case NN_vpslld: op = "sll";
+            bits = 32;
+            break;
+        case NN_vpsllq: op = "sll";
+            bits = 64;
+            break;
+        case NN_vpsrlw: op = "srl";
+            bits = 16;
+            break;
+        case NN_vpsrld: op = "srl";
+            bits = 32;
+            break;
+        case NN_vpsrlq: op = "srl";
+            bits = 64;
+            break;
+        case NN_vpsraw: op = "sra";
+            bits = 16;
+            break;
+        case NN_vpsrad: op = "sra";
+            bits = 32;
+            break;
+    }
+
+    if (cdg.insn.Op3.type == o_imm) {
+        // Immediate shift: _mm256_slli_epi16
+        qstring iname;
+        iname.cat_sprnt("_mm%s_%si_epi%d", size == YMM_SIZE ? "256" : "", op, bits);
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        tinfo_t ti = get_type_robust(size, true, false);
+        icall.add_argument_reg(s, ti);
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    } else {
+        // Register/Mem shift: _mm256_sll_epi16
+        // Count is always 128-bit (XMM or m128)
+        mreg_t count = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+        qstring iname;
+        iname.cat_sprnt("_mm%s_%s_epi%d", size == YMM_SIZE ? "256" : "", op, bits);
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        tinfo_t ti_vec = get_type_robust(size, true, false);
+        tinfo_t ti_count = get_type_robust(XMM_SIZE, true, false); // Count is always __m128i
+
+        icall.add_argument_reg(s, ti_vec);
+        icall.add_argument_reg(count, ti_count);
+        icall.set_return_reg(d, ti_vec);
+        icall.emit();
+    }
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_v_var_shift(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t s = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t c = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+
+    const char *op = nullptr;
+    int bits = 0;
+    switch (cdg.insn.itype) {
+        case NN_vpsllvd: op = "sllv";
+            bits = 32;
+            break;
+        case NN_vpsllvq: op = "sllv";
+            bits = 64;
+            break;
+        case NN_vpsrlvd: op = "srlv";
+            bits = 32;
+            break;
+        case NN_vpsrlvq: op = "srlv";
+            bits = 64;
+            break;
+        case NN_vpsravd: op = "srav";
+            bits = 32;
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s_epi%d", size == YMM_SIZE ? "256" : "", op, bits);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+    icall.add_argument_reg(s, ti);
+    icall.add_argument_reg(c, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vshufps(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     QASSERT(0xA0601, cdg.insn.Op4.type==o_imm);

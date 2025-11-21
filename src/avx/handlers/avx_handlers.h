@@ -58,6 +58,10 @@ merror_t handle_vround(codegen_t &cdg);
 // Logic & Misc
 merror_t handle_v_bitwise(codegen_t &cdg);
 
+merror_t handle_v_shift(codegen_t &cdg);
+
+merror_t handle_v_var_shift(codegen_t &cdg);
+
 merror_t handle_vshufps(codegen_t &cdg);
 
 merror_t handle_vshufpd(codegen_t &cdg);

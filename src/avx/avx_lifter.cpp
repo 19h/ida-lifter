@@ -98,6 +98,10 @@ struct ida_local AVXLifter : microcode_filter_t {
         // sign
         if (is_sign_insn(it)) return handle_v_sign(cdg);
 
+        // shifts
+        if (is_shift_insn(it)) return handle_v_shift(cdg);
+        if (is_var_shift_insn(it)) return handle_v_var_shift(cdg);
+
         // horizontal math
         if (is_horizontal_math(it)) return handle_v_hmath(cdg);
 
