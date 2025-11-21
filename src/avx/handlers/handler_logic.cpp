@@ -17,7 +17,8 @@ merror_t handle_v_bitwise(codegen_t &cdg) {
     mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    bool is_int = (cdg.insn.itype == NN_vpand || cdg.insn.itype == NN_vpor || cdg.insn.itype == NN_vpxor);
+    bool is_int = (cdg.insn.itype == NN_vpand || cdg.insn.itype == NN_vpor || cdg.insn.itype == NN_vpxor ||
+                   cdg.insn.itype == NN_vpandn);
     bool is_double = (cdg.insn.itype == NN_vandpd || cdg.insn.itype == NN_vorpd || cdg.insn.itype == NN_vxorpd ||
                       cdg.insn.itype == NN_vandnpd);
 
@@ -27,6 +28,7 @@ merror_t handle_v_bitwise(codegen_t &cdg) {
         case NN_vandps:
         case NN_vandpd: opname = "and";
             break;
+        case NN_vpandn:
         case NN_vandnps:
         case NN_vandnpd: opname = "andnot";
             break;

@@ -84,7 +84,7 @@ bool is_bitwise_insn(uint16 it) {
     return it == NN_vpor || it == NN_vorps || it == NN_vorpd ||
            it == NN_vpand || it == NN_vandps || it == NN_vandpd ||
            it == NN_vpxor || it == NN_vxorps || it == NN_vxorpd ||
-           it == NN_vandnps || it == NN_vandnpd;
+           it == NN_vandnps || it == NN_vandnpd || it == NN_vpandn;
 }
 
 bool is_scalar_minmax(uint16 it) {
