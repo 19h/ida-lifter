@@ -87,6 +87,7 @@ struct ida_local AVXLifter : microcode_filter_t {
             it == NN_vaddpd || it == NN_vsubpd || it == NN_vmulpd || it == NN_vdivpd ||
             it == NN_vpaddb || it == NN_vpsubb || it == NN_vpaddw || it == NN_vpsubw ||
             it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
+            it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
             is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it))
             return handle_v_math_p(cdg);
 
