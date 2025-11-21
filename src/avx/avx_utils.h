@@ -1,5 +1,5 @@
 /*
-    AVX Utility Functions and Classification
+ AVX Utility Functions and Classification
 */
 
 #pragma once
@@ -40,6 +40,10 @@ bool is_misc_insn(uint16 it);
 bool is_blend_insn(uint16 it);
 bool is_maskmov_insn(uint16 it);
 bool is_packed_compare_insn(uint16 it);
+bool is_horizontal_math(uint16 it);
+bool is_dot_product(uint16 it);
+bool is_approx_insn(uint16 it);
+bool is_round_insn(uint16 it);
 
 // Predicate extraction
 uint8 get_cmp_predicate(uint16 it);

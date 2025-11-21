@@ -1,5 +1,5 @@
 /*
-    AVX Helper Functions
+ AVX Helper Functions
 */
 
 #pragma once

@@ -1,5 +1,5 @@
 /*
-    AVX Lifter Debug Utilities
+ AVX Lifter Debug Utilities
 */
 
 #pragma once
