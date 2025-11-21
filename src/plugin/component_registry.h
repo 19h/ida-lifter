@@ -6,27 +6,35 @@
 // Simple component registry used by lifter_plugin.cpp.
 // It collects components and offers init/done and menu hookup stubs.
 
-struct component_desc_t
-{
-bool (*avail)();
-bool (*active)();
-void (*init)();
-void (*done)();
-void (*attach_popup)(TWidget *widget, TPopupMenu *popup, vdui_t *vu);
-const char *long_name;
-const char *short_name;
-const char *action_prefix;
+struct component_desc_t {
+    bool (*avail)();
+
+    bool (*active)();
+
+    void (*init)();
+
+    void (*done)();
+
+    void (*attach_popup)(TWidget *widget, TPopupMenu *popup, vdui_t *vu);
+
+    const char *long_name;
+    const char *short_name;
+    const char *action_prefix;
 };
 
-class component_registry_t
-{
+class component_registry_t {
 public:
-static void register_component(const component_desc_t &d);
-static size_t get_count();
-static int init_all();
-static int done_all();
-static void attach_to_popup(TWidget *widget, TPopupMenu *popup, vdui_t *vu);
-static void unregister_all_actions();
+    static void register_component(const component_desc_t &d);
+
+    static size_t get_count();
+
+    static int init_all();
+
+    static int done_all();
+
+    static void attach_to_popup(TWidget *widget, TPopupMenu *popup, vdui_t *vu);
+
+    static void unregister_all_actions();
 };
 
 // Registration helper. Each translation unit can call this to auto-register.
