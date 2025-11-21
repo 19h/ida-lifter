@@ -55,6 +55,12 @@ bool is_shift_insn(uint16 it);
 
 bool is_var_shift_insn(uint16 it);
 
+bool is_shuffle_insn(uint16 it);
+
+bool is_perm_insn(uint16 it);
+
+bool is_align_insn(uint16 it);
+
 bool is_math_insn(uint16 it);
 
 bool is_broadcast_insn(uint16 it);

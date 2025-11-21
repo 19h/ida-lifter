@@ -62,6 +62,12 @@ merror_t handle_v_shift(codegen_t &cdg);
 
 merror_t handle_v_var_shift(codegen_t &cdg);
 
+merror_t handle_v_shuffle_int(codegen_t &cdg);
+
+merror_t handle_v_perm_int(codegen_t &cdg);
+
+merror_t handle_v_align(codegen_t &cdg);
+
 merror_t handle_vshufps(codegen_t &cdg);
 
 merror_t handle_vshufpd(codegen_t &cdg);
