@@ -29,6 +29,7 @@ struct ida_local AVXLifter : microcode_filter_t {
         bool m = is_compare_insn(it) || is_extract_insn(it) || is_conversion_insn(it) ||
                  is_move_insn(it) || is_bitwise_insn(it) || is_math_insn(it) ||
                  is_broadcast_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
+                 is_packed_int_compare_insn(it) ||
                  is_maskmov_insn(it) || is_misc_insn(it) ||
                  is_horizontal_math(it) || is_dot_product(it) ||
                  is_approx_insn(it) || is_round_insn(it);
@@ -121,6 +122,7 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // packed compares
         if (is_packed_compare_insn(it)) return handle_vcmp_ps_pd(cdg);
+        if (is_packed_int_compare_insn(it)) return handle_vpcmp_int(cdg);
 
         // blend
         if (it == NN_vblendvps || it == NN_vblendvpd) return handle_vblendv_ps_pd(cdg);

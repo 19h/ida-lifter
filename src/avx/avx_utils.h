@@ -67,6 +67,8 @@ bool is_maskmov_insn(uint16 it);
 
 bool is_packed_compare_insn(uint16 it);
 
+bool is_packed_int_compare_insn(uint16 it);
+
 bool is_horizontal_math(uint16 it);
 
 bool is_dot_product(uint16 it);

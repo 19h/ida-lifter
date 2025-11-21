@@ -78,6 +78,8 @@ merror_t handle_vbroadcasti128_int(codegen_t &cdg);
 
 merror_t handle_vcmp_ps_pd(codegen_t &cdg);
 
+merror_t handle_vpcmp_int(codegen_t &cdg);
+
 merror_t handle_vblendv_ps_pd(codegen_t &cdg);
 
 merror_t handle_vblend_imm_ps_pd(codegen_t &cdg);

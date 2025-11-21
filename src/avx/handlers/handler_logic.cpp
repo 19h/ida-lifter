@@ -332,6 +332,56 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vpcmp_int(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *op = nullptr;
+    const char *type = nullptr;
+
+    switch (cdg.insn.itype) {
+        case NN_vpcmpeqb: op = "eq";
+            type = "epi8";
+            break;
+        case NN_vpcmpeqw: op = "eq";
+            type = "epi16";
+            break;
+        case NN_vpcmpeqd: op = "eq";
+            type = "epi32";
+            break;
+        case NN_vpcmpeqq: op = "eq";
+            type = "epi64";
+            break;
+        case NN_vpcmpgtb: op = "gt";
+            type = "epi8";
+            break;
+        case NN_vpcmpgtw: op = "gt";
+            type = "epi16";
+            break;
+        case NN_vpcmpgtd: op = "gt";
+            type = "epi32";
+            break;
+        case NN_vpcmpgtq: op = "gt";
+            type = "epi64";
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_cmp%s_%s", size == YMM_SIZE ? "256" : "", op, type);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+    icall.add_argument_reg(l, ti);
+    icall.add_argument_reg(r, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vblendv_ps_pd(codegen_t &cdg) {
     int size = get_op_size(cdg.insn);
     bool is_double = (cdg.insn.itype == NN_vblendvpd);

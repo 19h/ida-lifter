@@ -169,6 +169,11 @@ bool is_packed_compare_insn(uint16 it) {
            (it >= NN_vcmpeqsd && it <= NN_vcmptrue_ussd);
 }
 
+bool is_packed_int_compare_insn(uint16 it) {
+    return it == NN_vpcmpeqb || it == NN_vpcmpeqw || it == NN_vpcmpeqd || it == NN_vpcmpeqq ||
+           it == NN_vpcmpgtb || it == NN_vpcmpgtw || it == NN_vpcmpgtd || it == NN_vpcmpgtq;
+}
+
 uint8 get_cmp_predicate(uint16 it) {
     if (it >= NN_vcmpeqps && it <= NN_vcmptrue_usps) return (uint8) (it - NN_vcmpeqps);
     if (it >= NN_vcmpeqpd && it <= NN_vcmptrue_uspd) return (uint8) (it - NN_vcmpeqpd);
