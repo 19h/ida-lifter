@@ -1,5 +1,5 @@
 /*
- AVX Math Handlers
+AVX Math Handlers
 */
 
 #include "avx_handlers.h"
@@ -132,6 +132,19 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             is_int = true;
             break;
         case NN_vpsubq: fmt = "_mm%s_sub_epi64";
+            is_int = true;
+            break;
+        // INT saturating add/sub
+        case NN_vpaddsb: fmt = "_mm%s_adds_epi8";
+            is_int = true;
+            break;
+        case NN_vpsubsb: fmt = "_mm%s_subs_epi8";
+            is_int = true;
+            break;
+        case NN_vpaddsw: fmt = "_mm%s_adds_epi16";
+            is_int = true;
+            break;
+        case NN_vpsubsw: fmt = "_mm%s_subs_epi16";
             is_int = true;
             break;
         // INT min/max (signed)
