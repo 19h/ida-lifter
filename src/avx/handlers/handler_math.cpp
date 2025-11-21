@@ -228,6 +228,64 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_abs(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *suffix = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vpabsb: suffix = "epi8";
+            break;
+        case NN_vpabsw: suffix = "epi16";
+            break;
+        case NN_vpabsd: suffix = "epi32";
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_abs_%s", size == YMM_SIZE ? "256" : "", suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+    icall.add_argument_reg(r, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_v_sign(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *suffix = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vpsignb: suffix = "epi8";
+            break;
+        case NN_vpsignw: suffix = "epi16";
+            break;
+        case NN_vpsignd: suffix = "epi32";
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_sign_%s", size == YMM_SIZE ? "256" : "", suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+    icall.add_argument_reg(l, ti);
+    icall.add_argument_reg(r, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vsqrtss(codegen_t &cdg) {
     QASSERT(0xA0600, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
     mreg_t r = is_xmm_reg(cdg.insn.Op3) ? reg2mreg(cdg.insn.Op3.reg) : cdg.load_operand(2);
