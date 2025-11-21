@@ -111,6 +111,14 @@ bool is_avg_insn(uint16 it) {
     return it == NN_vpavgb || it == NN_vpavgw;
 }
 
+bool is_abs_insn(uint16 it) {
+    return it == NN_vpabsb || it == NN_vpabsw || it == NN_vpabsd;
+}
+
+bool is_sign_insn(uint16 it) {
+    return it == NN_vpsignb || it == NN_vpsignw || it == NN_vpsignd;
+}
+
 bool is_math_insn(uint16 it) {
     return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
            it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd ||
@@ -120,7 +128,7 @@ bool is_math_insn(uint16 it) {
            it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
            it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
            is_scalar_minmax(it) || is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
-           is_avg_insn(it);
+           is_avg_insn(it) || is_abs_insn(it) || is_sign_insn(it);
 }
 
 bool is_broadcast_insn(uint16 it) {

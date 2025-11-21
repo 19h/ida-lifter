@@ -47,6 +47,10 @@ bool is_int_mul(uint16 it);
 
 bool is_avg_insn(uint16 it);
 
+bool is_abs_insn(uint16 it);
+
+bool is_sign_insn(uint16 it);
+
 bool is_math_insn(uint16 it);
 
 bool is_broadcast_insn(uint16 it);
