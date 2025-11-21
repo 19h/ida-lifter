@@ -1,5 +1,5 @@
 /*
- AVX Instruction Handlers
+AVX Instruction Handlers
 */
 
 #pragma once
@@ -56,6 +56,10 @@ merror_t handle_v_bitwise(codegen_t &cdg);
 
 merror_t handle_vshufps(codegen_t &cdg);
 
+merror_t handle_vshufpd(codegen_t &cdg);
+
+merror_t handle_vpermpd(codegen_t &cdg);
+
 merror_t handle_vzeroupper_nop(codegen_t &cdg);
 
 merror_t handle_vbroadcast_ss_sd(codegen_t &cdg);
@@ -67,6 +71,8 @@ merror_t handle_vbroadcasti128_int(codegen_t &cdg);
 merror_t handle_vcmp_ps_pd(codegen_t &cdg);
 
 merror_t handle_vblendv_ps_pd(codegen_t &cdg);
+
+merror_t handle_vblend_imm_ps_pd(codegen_t &cdg);
 
 merror_t handle_vmaskmov_ps_pd(codegen_t &cdg);
 

@@ -64,17 +64,20 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vmovq) return handle_vmov(cdg, QWORD_SIZE);
         if (it == NN_vmovss) return handle_vmov_ss_sd(cdg, FLOAT_SIZE);
         if (it == NN_vmovsd) return handle_vmov_ss_sd(cdg, DOUBLE_SIZE);
-        if (it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu)
+        if (it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu ||
+            it == NN_vmovapd || it == NN_vmovupd)
             return handle_v_mov_ps_dq(cdg);
 
         // bitwise (now full 128/256-bit via intrinsics)
         if (is_bitwise_insn(it)) return handle_v_bitwise(cdg);
 
         // scalar math (add/sub/mul/div)
-        if (it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss) return handle_v_math_ss_sd(
-            cdg, FLOAT_SIZE);
-        if (it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd) return handle_v_math_ss_sd(
-            cdg, DOUBLE_SIZE);
+        if (it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss)
+            return handle_v_math_ss_sd(
+                cdg, FLOAT_SIZE);
+        if (it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd)
+            return handle_v_math_ss_sd(
+                cdg, DOUBLE_SIZE);
 
         // scalar min/max
         if (is_scalar_minmax(it)) return handle_v_minmax_ss_sd(cdg);
@@ -108,7 +111,8 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (is_packed_compare_insn(it)) return handle_vcmp_ps_pd(cdg);
 
         // blend
-        if (is_blend_insn(it)) return handle_vblendv_ps_pd(cdg);
+        if (it == NN_vblendvps || it == NN_vblendvpd) return handle_vblendv_ps_pd(cdg);
+        if (it == NN_vblendps || it == NN_vblendpd) return handle_vblend_imm_ps_pd(cdg);
 
         // maskmov
         if (is_maskmov_insn(it)) return handle_vmaskmov_ps_pd(cdg);
@@ -117,6 +121,8 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vsqrtss) return handle_vsqrtss(cdg);
         if (it == NN_vsqrtps || it == NN_vsqrtpd) return handle_vsqrt_ps_pd(cdg);
         if (it == NN_vshufps) return handle_vshufps(cdg);
+        if (it == NN_vshufpd) return handle_vshufpd(cdg);
+        if (it == NN_vpermpd) return handle_vpermpd(cdg);
         if (it == NN_vzeroupper) return handle_vzeroupper_nop(cdg);
 
         return MERR_INSN;
