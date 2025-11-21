@@ -1,5 +1,5 @@
 /*
- AVX Conversion Handlers
+AVX Conversion Handlers
 */
 
 #include "avx_handlers.h"
@@ -85,7 +85,8 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
 }
 
 merror_t handle_vcvtpd2ps(codegen_t &cdg) {
-    int src_size = is_ymm_reg(cdg.insn.Op2) ? YMM_SIZE : XMM_SIZE;
+    // Fix: Check operand size properly for memory operands (m256 vs m128)
+    int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
     mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -119,7 +120,8 @@ merror_t handle_vcvt_ps2dq(codegen_t &cdg, bool trunc) {
 }
 
 merror_t handle_vcvt_pd2dq(codegen_t &cdg, bool trunc) {
-    int src_size = is_ymm_reg(cdg.insn.Op2) ? YMM_SIZE : XMM_SIZE;
+    // Fix: Check operand size properly for memory operands (m256 vs m128)
+    int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
     mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
