@@ -204,6 +204,13 @@ merror_t handle_v_math_p(codegen_t &cdg) {
         case NN_vpmuludq: fmt = "_mm%s_mul_epu32";
             is_int = true;
             break;
+        // INT average
+        case NN_vpavgb: fmt = "_mm%s_avg_epu8";
+            is_int = true;
+            break;
+        case NN_vpavgw: fmt = "_mm%s_avg_epu16";
+            is_int = true;
+            break;
         default: QASSERT(0xA0502, false);
     }
 
@@ -270,14 +277,37 @@ merror_t handle_v_hmath(codegen_t &cdg) {
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     bool is_double = (cdg.insn.itype == NN_vhaddpd || cdg.insn.itype == NN_vhsubpd);
-    const char *op = (cdg.insn.itype == NN_vhaddps || cdg.insn.itype == NN_vhaddpd) ? "add" : "sub";
-    const char *type = is_double ? "pd" : "ps";
+    bool is_int = (cdg.insn.itype == NN_vphaddw || cdg.insn.itype == NN_vphaddsw ||
+                   cdg.insn.itype == NN_vphaddd || cdg.insn.itype == NN_vphsubd);
+
+    const char *op = nullptr;
+    const char *type = nullptr;
+
+    if (is_int) {
+        switch (cdg.insn.itype) {
+            case NN_vphaddw: op = "hadd";
+                type = "epi16";
+                break;
+            case NN_vphaddsw: op = "hadds";
+                type = "epi16";
+                break;
+            case NN_vphaddd: op = "hadd";
+                type = "epi32";
+                break;
+            case NN_vphsubd: op = "hsub";
+                type = "epi32";
+                break;
+        }
+    } else {
+        op = (cdg.insn.itype == NN_vhaddps || cdg.insn.itype == NN_vhaddpd) ? "hadd" : "hsub";
+        type = is_double ? "pd" : "ps";
+    }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_h%s_%s", size == YMM_SIZE ? "256" : "", op, type);
+    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, type);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(size, false, is_double);
+    tinfo_t ti = get_type_robust(size, is_int, is_double);
 
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);

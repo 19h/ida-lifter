@@ -1,5 +1,5 @@
 /*
- AVX Utility Functions and Classification
+AVX Utility Functions and Classification
 */
 
 #pragma once
@@ -44,6 +44,8 @@ bool is_packed_minmax_fp(uint16 it);
 bool is_packed_minmax_int(uint16 it);
 
 bool is_int_mul(uint16 it);
+
+bool is_avg_insn(uint16 it);
 
 bool is_math_insn(uint16 it);
 

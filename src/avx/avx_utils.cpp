@@ -107,6 +107,10 @@ bool is_int_mul(uint16 it) {
            it == NN_vpmuldq || it == NN_vpmuludq;
 }
 
+bool is_avg_insn(uint16 it) {
+    return it == NN_vpavgb || it == NN_vpavgw;
+}
+
 bool is_math_insn(uint16 it) {
     return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
            it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd ||
@@ -115,7 +119,8 @@ bool is_math_insn(uint16 it) {
            it == NN_vpaddb || it == NN_vpsubb || it == NN_vpaddw || it == NN_vpsubw ||
            it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
            it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
-           is_scalar_minmax(it) || is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it);
+           is_scalar_minmax(it) || is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
+           is_avg_insn(it);
 }
 
 bool is_broadcast_insn(uint16 it) {
@@ -152,7 +157,8 @@ uint8 get_cmp_predicate(uint16 it) {
 }
 
 bool is_horizontal_math(uint16 it) {
-    return it == NN_vhaddps || it == NN_vhaddpd || it == NN_vhsubps || it == NN_vhsubpd;
+    return it == NN_vhaddps || it == NN_vhaddpd || it == NN_vhsubps || it == NN_vhsubpd ||
+           it == NN_vphaddw || it == NN_vphaddsw || it == NN_vphaddd || it == NN_vphsubd;
 }
 
 bool is_dot_product(uint16 it) {
