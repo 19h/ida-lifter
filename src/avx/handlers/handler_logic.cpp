@@ -1,5 +1,5 @@
 /*
- AVX Logic and Misc Handlers
+AVX Logic and Misc Handlers
 */
 
 #include "avx_handlers.h"
@@ -18,13 +18,17 @@ merror_t handle_v_bitwise(codegen_t &cdg) {
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     bool is_int = (cdg.insn.itype == NN_vpand || cdg.insn.itype == NN_vpor || cdg.insn.itype == NN_vpxor);
-    bool is_double = (cdg.insn.itype == NN_vandpd || cdg.insn.itype == NN_vorpd || cdg.insn.itype == NN_vxorpd);
+    bool is_double = (cdg.insn.itype == NN_vandpd || cdg.insn.itype == NN_vorpd || cdg.insn.itype == NN_vxorpd ||
+                      cdg.insn.itype == NN_vandnpd);
 
     const char *opname = nullptr;
     switch (cdg.insn.itype) {
         case NN_vpand:
         case NN_vandps:
         case NN_vandpd: opname = "and";
+            break;
+        case NN_vandnps:
+        case NN_vandnpd: opname = "andnot";
             break;
         case NN_vpor:
         case NN_vorps:
