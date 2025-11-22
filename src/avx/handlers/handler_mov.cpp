@@ -1,10 +1,11 @@
 /*
- AVX Move Handlers
+AVX Move Handlers
 */
 
 #include "avx_handlers.h"
 #include "../avx_utils.h"
 #include "../avx_helpers.h"
+#include "../avx_intrinsic.h"
 
 #if IDA_SDK_VERSION >= 750
 
@@ -75,6 +76,79 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op2) ? XMM_SIZE : YMM_SIZE;
     mreg_t s = reg2mreg(cdg.insn.Op2.reg);
     store_operand_hack(cdg, 0, mop_t(s, size));
+    return MERR_OK;
+}
+
+merror_t handle_v_gather(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t mask = reg2mreg(cdg.insn.Op3.reg);
+    const op_t &mem = cdg.insn.Op2;
+    mreg_t base = reg2mreg(mem.reg);
+
+    static int xmm0_idx = -1;
+    if (xmm0_idx == -1) xmm0_idx = str2reg("xmm0");
+
+    // sib_index requires insn and op
+    mreg_t index_vec = reg2mreg(xmm0_idx + sib_index(cdg.insn, mem));
+
+    // sib_scale requires only op_t in this SDK version
+    int scale = 1 << sib_scale(mem);
+    ea_t disp = mem.addr;
+
+    const char *suffix = nullptr;
+    bool is_int = false;
+    bool is_double = false;
+    switch (cdg.insn.itype) {
+        case NN_vgatherdps: suffix = "ps";
+            break;
+        case NN_vgatherdpd: suffix = "pd";
+            is_double = true;
+            break;
+        case NN_vpgatherdd: suffix = "epi32";
+            is_int = true;
+            break;
+        case NN_vpgatherdq: suffix = "epi64";
+            is_int = true;
+            break;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_mask_i32gather_%s", size == YMM_SIZE ? "256" : "", suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti_dst = get_type_robust(size, is_int, is_double);
+    int idx_size = (is_double || cdg.insn.itype == NN_vpgatherdq) ? XMM_SIZE : size;
+    tinfo_t ti_idx = get_type_robust(idx_size, true, false);
+
+    icall.add_argument_reg(dst, ti_dst);
+
+    mreg_t arg_base = base;
+    mreg_t t_base = mr_none;
+
+    if (disp != 0) {
+        t_base = cdg.mba->alloc_kreg(8);
+        // emit(mcode_t, mop_t*, mop_t*, mop_t*)
+        mop_t *l = new mop_t(base, 8);
+        mop_t *r = new mop_t();
+        r->make_number(disp, 8);
+        mop_t *d = new mop_t(t_base, 8);
+        cdg.emit(m_add, l, r, d);
+        arg_base = t_base;
+    }
+
+    icall.add_argument_reg(arg_base, tinfo_t(BT_PTR));
+    icall.add_argument_reg(index_vec, ti_idx);
+    icall.add_argument_reg(mask, ti_dst);
+    icall.add_argument_imm(scale, BT_INT32);
+    icall.set_return_reg(dst, ti_dst);
+    icall.emit();
+
+    if (t_base != mr_none) {
+        cdg.mba->free_kreg(t_base, 8);
+    }
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
     return MERR_OK;
 }
 

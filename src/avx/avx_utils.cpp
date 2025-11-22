@@ -143,6 +143,11 @@ bool is_align_insn(uint16 it) {
     return it == NN_vpalignr;
 }
 
+bool is_gather_insn(uint16 it) {
+    return it == NN_vgatherdps || it == NN_vgatherdpd ||
+           it == NN_vpgatherdd || it == NN_vpgatherdq;
+}
+
 bool is_math_insn(uint16 it) {
     return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
            it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd ||
@@ -154,7 +159,8 @@ bool is_math_insn(uint16 it) {
            is_scalar_minmax(it) || is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
            is_avg_insn(it) || is_abs_insn(it) || is_sign_insn(it) ||
            is_shift_insn(it) || is_var_shift_insn(it) ||
-           is_shuffle_insn(it) || is_perm_insn(it) || is_align_insn(it);
+           is_shuffle_insn(it) || is_perm_insn(it) || is_align_insn(it) ||
+           is_gather_insn(it);
 }
 
 bool is_broadcast_insn(uint16 it) {

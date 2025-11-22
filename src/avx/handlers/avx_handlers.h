@@ -32,6 +32,8 @@ merror_t handle_vmov(codegen_t &cdg, int data_size);
 
 merror_t handle_v_mov_ps_dq(codegen_t &cdg);
 
+merror_t handle_v_gather(codegen_t &cdg);
+
 // Math
 merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size);
 

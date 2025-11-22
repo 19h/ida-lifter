@@ -32,7 +32,8 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_packed_int_compare_insn(it) ||
                  is_maskmov_insn(it) || is_misc_insn(it) ||
                  is_horizontal_math(it) || is_dot_product(it) ||
-                 is_approx_insn(it) || is_round_insn(it);
+                 is_approx_insn(it) || is_round_insn(it) ||
+                 is_gather_insn(it);
 
         if (m) {
             DEBUG_LOG("%a: MATCH itype=%u", ea, it);
@@ -107,6 +108,9 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (is_shuffle_insn(it)) return handle_v_shuffle_int(cdg);
         if (is_perm_insn(it)) return handle_v_perm_int(cdg);
         if (is_align_insn(it)) return handle_v_align(cdg);
+
+        // gather
+        if (is_gather_insn(it)) return handle_v_gather(cdg);
 
         // horizontal math
         if (is_horizontal_math(it)) return handle_v_hmath(cdg);
