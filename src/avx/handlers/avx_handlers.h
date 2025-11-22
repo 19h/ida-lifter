@@ -45,6 +45,8 @@ merror_t handle_v_abs(codegen_t &cdg);
 
 merror_t handle_v_sign(codegen_t &cdg);
 
+merror_t handle_v_fma(codegen_t &cdg);
+
 merror_t handle_vsqrtss(codegen_t &cdg);
 
 merror_t handle_vsqrt_ps_pd(codegen_t &cdg);

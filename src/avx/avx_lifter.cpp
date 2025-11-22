@@ -33,7 +33,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_maskmov_insn(it) || is_misc_insn(it) ||
                  is_horizontal_math(it) || is_dot_product(it) ||
                  is_approx_insn(it) || is_round_insn(it) ||
-                 is_gather_insn(it);
+                 is_gather_insn(it) || is_fma_insn(it);
 
         if (m) {
             DEBUG_LOG("%a: MATCH itype=%u", ea, it);
@@ -99,6 +99,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // sign
         if (is_sign_insn(it)) return handle_v_sign(cdg);
+
+        // fma
+        if (is_fma_insn(it)) return handle_v_fma(cdg);
 
         // shifts
         if (is_shift_insn(it)) return handle_v_shift(cdg);
