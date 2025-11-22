@@ -305,6 +305,132 @@ merror_t handle_v_sign(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_fma(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t op1 = reg2mreg(cdg.insn.Op1.reg); // Dest/Src1
+    mreg_t op2 = reg2mreg(cdg.insn.Op2.reg); // Src2
+    mreg_t op3_in = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg); // Src3
+
+    const char *op = nullptr;
+    const char *type = nullptr;
+    int order = 0; // 132, 213, 231
+    bool is_scalar = false;
+    bool is_double = false;
+
+    uint16 it = cdg.insn.itype;
+
+    // Decode instruction
+    if (it >= NN_vfmadd132ps && it <= NN_vfmadd231sd) { op = "fmadd"; } else if (
+        it >= NN_vfmsub132ps && it <= NN_vfmsub231sd) { op = "fmsub"; } else if (
+        it >= NN_vfnmadd132ps && it <= NN_vfnmadd231sd) { op = "fnmadd"; } else if (
+        it >= NN_vfnmsub132ps && it <= NN_vfnmsub231sd) { op = "fnmsub"; } else return MERR_INSN;
+
+    // Determine type and order based on suffix
+    // Suffixes: 132ps, 213ps, 231ps, 132pd, 213pd, 231pd, 132ss, 213ss, 231ss, 132sd, 213sd, 231sd
+    // We can check the last 2 chars of mnemonic or use ranges.
+    // Using ranges is safer.
+    // Groups are usually: 132ps, 213ps, 231ps, 132pd, 213pd, 231pd, 132ss, 213ss, 231ss, 132sd, 213sd, 231sd
+    // But IDA order might vary.
+    // Let's use a helper lambda or macro to check.
+
+    auto check = [&](uint16 base, const char *t, bool dbl, bool scl) {
+        if (it == base) {
+            type = t;
+            order = 132;
+            is_double = dbl;
+            is_scalar = scl;
+            return true;
+        }
+        if (it == base + 1) {
+            type = t;
+            order = 213;
+            is_double = dbl;
+            is_scalar = scl;
+            return true;
+        }
+        if (it == base + 2) {
+            type = t;
+            order = 231;
+            is_double = dbl;
+            is_scalar = scl;
+            return true;
+        }
+        return false;
+    };
+
+    // MADD
+    if (check(NN_vfmadd132ps, "ps", false, false)) {
+    } else if (check(NN_vfmadd132pd, "pd", true, false)) {
+    } else if (check(NN_vfmadd132ss, "ss", false, true)) {
+    } else if (check(NN_vfmadd132sd, "sd", true, true)) {
+    }
+    // MSUB
+    else if (check(NN_vfmsub132ps, "ps", false, false)) {
+    } else if (check(NN_vfmsub132pd, "pd", true, false)) {
+    } else if (check(NN_vfmsub132ss, "ss", false, true)) {
+    } else if (check(NN_vfmsub132sd, "sd", true, true)) {
+    }
+    // NMADD
+    else if (check(NN_vfnmadd132ps, "ps", false, false)) {
+    } else if (check(NN_vfnmadd132pd, "pd", true, false)) {
+    } else if (check(NN_vfnmadd132ss, "ss", false, true)) {
+    } else if (check(NN_vfnmadd132sd, "sd", true, true)) {
+    }
+    // NMSUB
+    else if (check(NN_vfnmsub132ps, "ps", false, false)) {
+    } else if (check(NN_vfnmsub132pd, "pd", true, false)) {
+    } else if (check(NN_vfnmsub132ss, "ss", false, true)) {
+    } else if (check(NN_vfnmsub132sd, "sd", true, true)) {
+    } else return MERR_INSN;
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s_%s", (size == YMM_SIZE && !is_scalar) ? "256" : "", op, type);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, false, is_double);
+
+    // Handle scalar memory operand promotion
+    mreg_t op3 = op3_in;
+    mreg_t t_mem = mr_none;
+    if (is_scalar && is_mem_op(cdg.insn.Op3)) {
+        int elem_size = is_double ? 8 : 4;
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        cdg.emit(m_mov, elem_size, op3_in, 0, t_mem, 0);
+        op3 = t_mem;
+    }
+
+    // Argument ordering
+    // 132: Op1 * Op3 + Op2 -> (Op1, Op3, Op2)
+    // 213: Op2 * Op1 + Op3 -> (Op2, Op1, Op3)
+    // 231: Op2 * Op3 + Op1 -> (Op2, Op3, Op1)
+
+    mreg_t arg1, arg2, arg3;
+    if (order == 132) {
+        arg1 = op1;
+        arg2 = op3;
+        arg3 = op2;
+    } else if (order == 213) {
+        arg1 = op2;
+        arg2 = op1;
+        arg3 = op3;
+    } else {
+        arg1 = op2;
+        arg2 = op3;
+        arg3 = op1;
+    } // 231
+
+    icall.add_argument_reg(arg1, ti);
+    icall.add_argument_reg(arg2, ti);
+    icall.add_argument_reg(arg3, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vsqrtss(codegen_t &cdg) {
     QASSERT(0xA0600, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
     mreg_t r = is_xmm_reg(cdg.insn.Op3) ? reg2mreg(cdg.insn.Op3.reg) : cdg.load_operand(2);

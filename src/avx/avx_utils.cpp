@@ -148,6 +148,13 @@ bool is_gather_insn(uint16 it) {
            it == NN_vpgatherdd || it == NN_vpgatherdq;
 }
 
+bool is_fma_insn(uint16 it) {
+    return (it >= NN_vfmadd132ps && it <= NN_vfmadd231sd) ||
+           (it >= NN_vfmsub132ps && it <= NN_vfmsub231sd) ||
+           (it >= NN_vfnmadd132ps && it <= NN_vfnmadd231sd) ||
+           (it >= NN_vfnmsub132ps && it <= NN_vfnmsub231sd);
+}
+
 bool is_math_insn(uint16 it) {
     return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
            it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd ||
@@ -160,7 +167,7 @@ bool is_math_insn(uint16 it) {
            is_avg_insn(it) || is_abs_insn(it) || is_sign_insn(it) ||
            is_shift_insn(it) || is_var_shift_insn(it) ||
            is_shuffle_insn(it) || is_perm_insn(it) || is_align_insn(it) ||
-           is_gather_insn(it);
+           is_gather_insn(it) || is_fma_insn(it);
 }
 
 bool is_broadcast_insn(uint16 it) {

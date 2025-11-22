@@ -63,6 +63,8 @@ bool is_align_insn(uint16 it);
 
 bool is_gather_insn(uint16 it);
 
+bool is_fma_insn(uint16 it);
+
 bool is_math_insn(uint16 it);
 
 bool is_broadcast_insn(uint16 it);
