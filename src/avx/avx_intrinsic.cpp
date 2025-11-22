@@ -1,5 +1,5 @@
 /*
- AVX Intrinsic Call Builder
+AVX Intrinsic Call Builder
 */
 
 #include "avx_intrinsic.h"
@@ -11,7 +11,7 @@
 #include "../common/warn_on.h"
 
 AVXIntrinsic::AVXIntrinsic(codegen_t *cdg_, const char *name)
-    : cdg(cdg_), call_info(nullptr), call_insn(nullptr), mov_insn(nullptr), emitted(false) {
+    : cdg(cdg_), call_info(nullptr), call_insn(nullptr), mov_insn(nullptr), emitted(false), stk_off(0) {
     // Allocate call_info with IDA's allocator
     call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
     new(call_info) mcallinfo_t();
@@ -95,6 +95,18 @@ void AVXIntrinsic::add_argument_reg(mreg_t mreg, const tinfo_t &arg_ti) {
     mcallarg_t ca(mop_t(mreg, (int) arg_ti.get_size()));
     ca.type = arg_ti;
     ca.size = (decltype(ca.size)) arg_ti.get_size();
+
+    // Assign dummy stack location to satisfy verification
+    // Align to natural size of argument (min 8 bytes for stack slot)
+    int align = ca.size;
+    if (align < 8) align = 8;
+    // Ensure power of 2 alignment for vectors
+    if (align > 32) align = 32; // Cap alignment requirement
+
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
     call_info->args.add(ca);
     call_info->solid_args++;
 }
@@ -122,6 +134,15 @@ void AVXIntrinsic::add_argument_imm(uint64 value, type_t bt) {
     ca.make_number(value, (int) ti.get_size());
     ca.type = ti;
     ca.size = (decltype(ca.size)) ti.get_size();
+
+    // Assign dummy stack location to satisfy verification
+    int align = ca.size;
+    if (align < 8) align = 8;
+
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
     call_info->args.add(ca);
     call_info->solid_args++;
 }

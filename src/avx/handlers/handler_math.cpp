@@ -44,9 +44,11 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     mreg_t r_arg = r_in;
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
-        // Promote scalar load to vector register for intrinsic
+        // Promote scalar load to vector register for intrinsic.
+        // CRITICAL FIX: Use m_xdu instead of m_mov to fully define the 16-byte register.
+        // m_mov only writes elem_size (4/8), leaving upper bytes undefined, causing INTERR 52368.
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
-        cdg.emit(m_mov, elem_size, r_in, 0, t_mem, 0);
+        cdg.emit(m_xdu, new mop_t(r_in, elem_size), nullptr, new mop_t(t_mem, XMM_SIZE));
         r_arg = t_mem;
     }
     icall.add_argument_reg(r_arg, vec_type);
@@ -326,14 +328,6 @@ merror_t handle_v_fma(codegen_t &cdg) {
         it >= NN_vfnmadd132ps && it <= NN_vfnmadd231sd) { op = "fnmadd"; } else if (
         it >= NN_vfnmsub132ps && it <= NN_vfnmsub231sd) { op = "fnmsub"; } else return MERR_INSN;
 
-    // Determine type and order based on suffix
-    // Suffixes: 132ps, 213ps, 231ps, 132pd, 213pd, 231pd, 132ss, 213ss, 231ss, 132sd, 213sd, 231sd
-    // We can check the last 2 chars of mnemonic or use ranges.
-    // Using ranges is safer.
-    // Groups are usually: 132ps, 213ps, 231ps, 132pd, 213pd, 231pd, 132ss, 213ss, 231ss, 132sd, 213sd, 231sd
-    // But IDA order might vary.
-    // Let's use a helper lambda or macro to check.
-
     auto check = [&](uint16 base, const char *t, bool dbl, bool scl) {
         if (it == base) {
             type = t;
@@ -396,7 +390,8 @@ merror_t handle_v_fma(codegen_t &cdg) {
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         int elem_size = is_double ? 8 : 4;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
-        cdg.emit(m_mov, elem_size, op3_in, 0, t_mem, 0);
+        // CRITICAL FIX: Use m_xdu to fully define the 16-byte register.
+        cdg.emit(m_xdu, new mop_t(op3_in, elem_size), nullptr, new mop_t(t_mem, XMM_SIZE));
         op3 = t_mem;
     }
 

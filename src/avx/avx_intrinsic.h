@@ -1,5 +1,5 @@
 /*
- AVX Intrinsic Call Builder
+AVX Intrinsic Call Builder
 */
 
 #pragma once
@@ -18,6 +18,7 @@ struct ida_local AVXIntrinsic {
     minsn_t *call_insn; // Heap-allocated (IDA allocator)
     minsn_t *mov_insn; // Heap-allocated (IDA allocator)
     bool emitted; // Track ownership transfer
+    int stk_off; // Stack offset for arguments to satisfy verification
 
     explicit AVXIntrinsic(codegen_t *cdg_, const char *name);
 
