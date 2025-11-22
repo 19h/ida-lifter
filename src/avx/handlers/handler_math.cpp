@@ -11,32 +11,51 @@ AVX Math Handlers
 
 merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     QASSERT(0xA0500, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t r_in = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    mcode_t opc = m_nop;
+    const char *op = nullptr;
+    const char *suf = (elem_size == FLOAT_SIZE) ? "ss" : "sd";
     switch (cdg.insn.itype) {
         case NN_vaddss:
-        case NN_vaddsd: opc = m_fadd;
+        case NN_vaddsd: op = "add";
             break;
         case NN_vsubss:
-        case NN_vsubsd: opc = m_fsub;
+        case NN_vsubsd: op = "sub";
             break;
         case NN_vmulss:
-        case NN_vmulsd: opc = m_fmul;
+        case NN_vmulsd: op = "mul";
             break;
         case NN_vdivss:
-        case NN_vdivsd: opc = m_fdiv;
+        case NN_vdivsd: op = "div";
             break;
+        default: return MERR_INSN;
     }
 
-    op_dtype_t odt = (elem_size == FLOAT_SIZE) ? dt_float : dt_double;
-    mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
-    cdg.emit(m_mov, XMM_SIZE, l, 0, t, 0);
-    cdg.emit_micro_mvm(opc, odt, l, r, t, 0);
-    cdg.emit(m_mov, XMM_SIZE, t, 0, d, 0);
-    cdg.mba->free_kreg(t, XMM_SIZE);
+    qstring iname;
+    iname.cat_sprnt("_mm_%s_%s", op, suf);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vec_type = get_type_robust(XMM_SIZE, false, (elem_size == DOUBLE_SIZE));
+
+    icall.add_argument_reg(l, vec_type);
+
+    mreg_t r_arg = r_in;
+    mreg_t t_mem = mr_none;
+    if (is_mem_op(cdg.insn.Op3)) {
+        // Promote scalar load to vector register for intrinsic
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        cdg.emit(m_mov, elem_size, r_in, 0, t_mem, 0);
+        r_arg = t_mem;
+    }
+    icall.add_argument_reg(r_arg, vec_type);
+
+    icall.set_return_reg(d, vec_type);
+    icall.emit();
+
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+
     clear_upper(cdg, d);
     return MERR_OK;
 }
