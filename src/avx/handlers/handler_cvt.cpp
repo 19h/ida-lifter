@@ -11,7 +11,7 @@ AVX Conversion Handlers
 
 merror_t handle_vcvtdq2ps(codegen_t &cdg) {
     int op_size = get_op_size(cdg.insn);
-    mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtepi32_ps", op_size);
@@ -29,7 +29,7 @@ merror_t handle_vcvtsi2fp(codegen_t &cdg) {
     int src_size = (int) get_dtype_size(cdg.insn.Op3.dtype);
     int dst_size = (cdg.insn.itype == NN_vcvtsi2sd) ? DOUBLE_SIZE : FLOAT_SIZE;
 
-    mreg_t r = load_op_reg_or_mem(cdg, 2, cdg.insn.Op3);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -50,7 +50,7 @@ merror_t handle_vcvtsi2fp(codegen_t &cdg) {
 
 merror_t handle_vcvtps2pd(codegen_t &cdg) {
     int src128 = is_xmm_reg(cdg.insn.Op1) ? QWORD_SIZE : XMM_SIZE; // element block
-    mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtps_pd", src128 * 2);
@@ -69,7 +69,7 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
     int src_size = is_ss2sd ? FLOAT_SIZE : DOUBLE_SIZE;
     int dst_size = is_ss2sd ? DOUBLE_SIZE : FLOAT_SIZE;
 
-    mreg_t r = load_op_reg_or_mem(cdg, 2, cdg.insn.Op3);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -85,9 +85,8 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
 }
 
 merror_t handle_vcvtpd2ps(codegen_t &cdg) {
-    // Fix: Check operand size properly for memory operands (m256 vs m128)
     int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
-    mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtpd_ps", src_size);
@@ -103,7 +102,7 @@ merror_t handle_vcvtpd2ps(codegen_t &cdg) {
 
 merror_t handle_vcvt_ps2dq(codegen_t &cdg, bool trunc) {
     int op_size = get_op_size(cdg.insn);
-    mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *iname = (op_size == YMM_SIZE)
@@ -120,9 +119,8 @@ merror_t handle_vcvt_ps2dq(codegen_t &cdg, bool trunc) {
 }
 
 merror_t handle_vcvt_pd2dq(codegen_t &cdg, bool trunc) {
-    // Fix: Check operand size properly for memory operands (m256 vs m128)
     int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
-    mreg_t r = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = trunc

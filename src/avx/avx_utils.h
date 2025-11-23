@@ -12,9 +12,40 @@ AVX Utility Functions and Classification
 #if IDA_SDK_VERSION >= 750
 
 #include "avx_types.h"
+#include "avx_helpers.h"
 
-// Operand helpers
-mreg_t load_op_reg_or_mem(codegen_t &cdg, int op_idx, const op_t &op);
+// RAII helper to load operand into a register and free it if it's a temporary kreg
+struct AvxOpLoader {
+    codegen_t &cdg;
+    mreg_t reg;
+    bool is_kreg;
+    int size;
+
+    AvxOpLoader(codegen_t &c, int op_idx, const op_t &op) : cdg(c) {
+        if (is_mem_op(op)) {
+            reg = cdg.load_operand(op_idx);
+            is_kreg = true;
+            size = get_dtype_size(op.dtype);
+        } else {
+            reg = reg2mreg(op.reg);
+            is_kreg = false;
+            size = 0;
+        }
+    }
+
+    ~AvxOpLoader() {
+        if (is_kreg) {
+            cdg.mba->free_kreg(reg, size);
+        }
+    }
+
+    // Disable copy
+    AvxOpLoader(const AvxOpLoader &) = delete;
+
+    AvxOpLoader &operator=(const AvxOpLoader &) = delete;
+
+    operator mreg_t() const { return reg; }
+};
 
 int get_op_size(const insn_t &insn);
 

@@ -7,14 +7,6 @@ AVX Utility Functions and Classification
 
 #if IDA_SDK_VERSION >= 750
 
-mreg_t load_op_reg_or_mem(codegen_t &cdg, int op_idx, const op_t &op) {
-    if (is_mem_op(op)) {
-        return cdg.load_operand(op_idx);
-    } else {
-        return reg2mreg(op.reg);
-    }
-}
-
 int get_op_size(const insn_t &insn) {
     if (is_xmm_reg(insn.Op1)) return XMM_SIZE;
     if (is_ymm_reg(insn.Op1)) return YMM_SIZE;

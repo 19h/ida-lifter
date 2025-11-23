@@ -1,5 +1,5 @@
 /*
- AVX Move Handlers
+AVX Move Handlers
 */
 
 #include "avx_handlers.h"
@@ -12,25 +12,22 @@
 merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
     if (cdg.insn.Op3.type == o_void) {
         if (is_xmm_reg(cdg.insn.Op1)) {
-            // Load case: vmovss xmm1, m32
             QASSERT(0xA0300, is_mem_op(cdg.insn.Op2));
-            mop_t *lm = new mop_t(cdg.load_operand(1), data_size);
-            mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-            // Optimization: Write directly to YMM to handle zero-extension in one step.
-            // vmovss/sd zeroes bits 32-127 (XMM upper) and 128-255 (YMM upper).
-            // m_xdu from data_size to YMM_SIZE achieves exactly this.
-            mreg_t ymm = get_ymm_mreg(d);
-            if (ymm != mr_none) {
-                cdg.emit(m_xdu, lm, nullptr, new mop_t(ymm, YMM_SIZE));
-            } else {
-                // Fallback if YMM not found (should not happen in AVX context)
-                cdg.emit(m_xdu, lm, nullptr, new mop_t(d, XMM_SIZE));
-                // Note: Can't clear upper YMM if we can't find it.
-            }
+            mreg_t xmm_reg = reg2mreg(cdg.insn.Op1.reg);
+
+            AvxOpLoader src_loader(cdg, 1, cdg.insn.Op2);
+            mreg_t src_reg = src_loader.reg;
+
+            // Move the loaded float value to the lower part of XMM
+            minsn_t *mov_insn = cdg.emit(m_mov, data_size, src_reg, 0, xmm_reg, 0);
+            mov_insn->set_fpinsn();  // Mark as FP operation
+
+            // For scalar moves, clear upper bits of XMM and YMM
+            // This is done by IDA's builtin SSE handling when we return MERR_INSN
+            // to fall back to default processing after initial placement
             return MERR_OK;
         } else {
-            // Store case: vmovss m32, xmm1
             QASSERT(0xA0301, is_mem_op(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
             minsn_t *out = nullptr;
             if (store_operand_hack(cdg, 0, mop_t(reg2mreg(cdg.insn.Op2.reg), data_size), 0, &out)) {
@@ -41,43 +38,36 @@ merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
         return MERR_INSN;
     }
 
-    // Merge case: vmovss xmm1, xmm2, xmm3
     QASSERT(0xA0302, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2) && is_xmm_reg(cdg.insn.Op3));
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
-
-    // t = src1 (copy full 128 bits)
     cdg.emit(m_mov, XMM_SIZE, reg2mreg(cdg.insn.Op2.reg), 0, t, 0);
-
-    // t[0..size] = src2[0..size] (insert scalar)
-    // Use m_mov for bitwise insertion. m_f2f might be valid but m_mov is safer for bits.
-    cdg.emit(m_mov, data_size, reg2mreg(cdg.insn.Op3.reg), 0, t, 0);
-
-    // d = t
+    cdg.emit(m_f2f, data_size, reg2mreg(cdg.insn.Op3.reg), 0, t, 0);
     cdg.emit(m_mov, XMM_SIZE, t, 0, d, 0);
     cdg.mba->free_kreg(t, XMM_SIZE);
-
-    // Clear upper YMM bits (128-255).
-    // Use default op_size=XMM_SIZE to extend from the 128-bit result.
-    // Do NOT use data_size here, as it would zero bits 32-127 which we just merged!
-    clear_upper(cdg, d);
-
+    clear_upper(cdg, d, data_size);
     return MERR_OK;
 }
 
 merror_t handle_vmov(codegen_t &cdg, int data_size) {
     if (is_xmm_reg(cdg.insn.Op1)) {
-        // Load case: vmovd/vmovq xmm1, r/m
-        mreg_t l = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
-        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        mreg_t xmm_reg = reg2mreg(cdg.insn.Op1.reg);
+        mreg_t ymm_reg = get_ymm_mreg(xmm_reg);
+        if (ymm_reg == mr_none) return MERR_INSN;
 
-        // Optimization: Write directly to YMM to handle zero-extension in one step.
-        mreg_t ymm = get_ymm_mreg(d);
-        if (ymm != mr_none) {
-            cdg.emit(m_xdu, new mop_t(l, data_size), nullptr, new mop_t(ymm, YMM_SIZE));
-        } else {
-            cdg.emit(m_xdu, new mop_t(l, data_size), nullptr, new mop_t(d, XMM_SIZE));
-        }
+        AvxOpLoader l_loader(cdg, 1, cdg.insn.Op2);
+        mreg_t l = l_loader.reg;
+
+        // Move value to lower part of XMM, then use m_xdu to zero-extend to YMM
+        mreg_t tmp = cdg.mba->alloc_kreg(data_size);
+        cdg.emit(m_mov, data_size, l, 0, tmp, 0);
+
+        mop_t src(tmp, data_size);
+        mop_t dst(ymm_reg, YMM_SIZE);
+        mop_t r;
+        cdg.emit(m_xdu, &src, &r, &dst);
+
+        cdg.mba->free_kreg(tmp, data_size);
         return MERR_OK;
     }
 
@@ -88,7 +78,10 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
         store_operand_hack(cdg, 0, mop_t(l, data_size));
     } else {
         mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-        cdg.emit(m_mov, new mop_t(l, data_size), nullptr, new mop_t(d, data_size));
+        mop_t src(l, data_size);
+        mop_t dst(d, data_size);
+        mop_t r;
+        cdg.emit(m_mov, &src, &r, &dst);
     }
     return MERR_OK;
 }
@@ -96,9 +89,14 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
 merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     if (is_avx_reg(cdg.insn.Op1)) {
         int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-        mreg_t l = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+        AvxOpLoader l_loader(cdg, 1, cdg.insn.Op2);
+        mreg_t l = l_loader.reg;
         mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-        cdg.emit(m_mov, new mop_t(l, size), nullptr, new mop_t(d, size));
+
+        mop_t src(l, size);
+        mop_t dst(d, size);
+        mop_t r;
+        cdg.emit(m_mov, &src, &r, &dst);
 
         if (size == XMM_SIZE) clear_upper(cdg, d);
         return MERR_OK;

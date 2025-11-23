@@ -14,7 +14,7 @@ merror_t handle_v_bitwise(codegen_t &cdg) {
 
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     bool is_int = (cdg.insn.itype == NN_vpand || cdg.insn.itype == NN_vpor || cdg.insn.itype == NN_vpxor ||
@@ -67,7 +67,7 @@ merror_t handle_v_shift(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     // Op2 can be mem if Op3 is imm, otherwise Op2 is reg.
-    mreg_t s = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader s(cdg, 1, cdg.insn.Op2);
 
     const char *op = nullptr;
     int bits = 0;
@@ -111,7 +111,7 @@ merror_t handle_v_shift(codegen_t &cdg) {
     } else {
         // Register/Mem shift: _mm256_sll_epi16
         // Count is always 128-bit (XMM or m128)
-        mreg_t count = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+        AvxOpLoader count(cdg, 2, cdg.insn.Op3);
         qstring iname;
         iname.cat_sprnt("_mm%s_%s_epi%d", size == YMM_SIZE ? "256" : "", op, bits);
         AVXIntrinsic icall(&cdg, iname.c_str());
@@ -131,7 +131,7 @@ merror_t handle_v_var_shift(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t s = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t c = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader c(cdg, 2, cdg.insn.Op3);
 
     const char *op = nullptr;
     int bits = 0;
@@ -159,6 +159,52 @@ merror_t handle_v_var_shift(codegen_t &cdg) {
     tinfo_t ti = get_type_robust(size, true, false);
     icall.add_argument_reg(s, ti);
     icall.add_argument_reg(c, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vshufps(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    QASSERT(0xA0601, cdg.insn.Op4.type==o_imm);
+    uval_t imm8 = cdg.insn.Op4.value;
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_shuffle_ps", size == YMM_SIZE ? "256" : "");
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, false, false);
+
+    icall.add_argument_reg(l, ti);
+    icall.add_argument_reg(r, ti);
+    icall.add_argument_imm(imm8, BT_INT8);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vshufpd(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    QASSERT(0xA0602, cdg.insn.Op4.type==o_imm);
+    uval_t imm8 = cdg.insn.Op4.value;
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_shuffle_pd", size == YMM_SIZE ? "256" : "");
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, false, true);
+
+    icall.add_argument_reg(l, ti);
+    icall.add_argument_reg(r, ti);
+    icall.add_argument_imm(imm8, BT_INT8);
     icall.set_return_reg(d, ti);
     icall.emit();
 
@@ -206,7 +252,7 @@ merror_t handle_v_shuffle_int(codegen_t &cdg) {
         icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
     } else {
         // vpshufb: mask is Op3
-        mreg_t mask = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+        AvxOpLoader mask(cdg, 2, cdg.insn.Op3);
         icall.add_argument_reg(mask, ti);
     }
 
@@ -217,6 +263,31 @@ merror_t handle_v_shuffle_int(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vpermpd(codegen_t &cdg) {
+    // vpermpd is AVX2, YMM only usually.
+    // vpermpd ymm1, ymm2/m256, imm8
+    int size = YMM_SIZE;
+    if (!is_ymm_reg(cdg.insn.Op1)) {
+        // Should not happen for vpermpd, but check
+        size = XMM_SIZE;
+    }
+
+    QASSERT(0xA0603, cdg.insn.Op3.type==o_imm);
+    uval_t imm8 = cdg.insn.Op3.value;
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    AVXIntrinsic icall(&cdg, "_mm256_permute4x64_pd");
+    tinfo_t ti = get_type_robust(size, false, true);
+
+    icall.add_argument_reg(r, ti);
+    icall.add_argument_imm(imm8, BT_INT8);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    return MERR_OK;
+}
+
 merror_t handle_v_perm_int(codegen_t &cdg) {
     // vpermq and vpermd are AVX2 (YMM)
     int size = YMM_SIZE;
@@ -224,7 +295,7 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
 
     if (cdg.insn.itype == NN_vpermq) {
         // vpermq ymm1, ymm2/m256, imm8
-        mreg_t s = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+        AvxOpLoader s(cdg, 1, cdg.insn.Op2);
         QASSERT(0xA0606, cdg.insn.Op3.type == o_imm);
 
         AVXIntrinsic icall(&cdg, "_mm256_permute4x64_epi64");
@@ -238,7 +309,7 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
         // _mm256_permutevar8x32_epi32(src, idx)
         // Instruction: vpermd dest, idx, src
         mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
-        mreg_t src = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+        AvxOpLoader src(cdg, 2, cdg.insn.Op3);
 
         AVXIntrinsic icall(&cdg, "_mm256_permutevar8x32_epi32");
         tinfo_t ti = get_type_robust(size, true, false);
@@ -254,7 +325,7 @@ merror_t handle_v_align(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t s1 = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t s2 = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader s2(cdg, 2, cdg.insn.Op3);
     QASSERT(0xA0607, cdg.insn.Op4.type == o_imm);
 
     qstring iname;
@@ -276,77 +347,6 @@ merror_t handle_v_align(codegen_t &cdg) {
     return MERR_OK;
 }
 
-merror_t handle_vshufps(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    QASSERT(0xA0601, cdg.insn.Op4.type==o_imm);
-    uval_t imm8 = cdg.insn.Op4.value;
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
-    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-
-    qstring iname;
-    iname.cat_sprnt("_mm%s_shuffle_ps", size == YMM_SIZE ? "256" : "");
-    AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(size, false, false);
-
-    icall.add_argument_reg(l, ti);
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm8, BT_INT8);
-    icall.set_return_reg(d, ti);
-    icall.emit();
-
-    if (size == XMM_SIZE) clear_upper(cdg, d);
-    return MERR_OK;
-}
-
-merror_t handle_vshufpd(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    QASSERT(0xA0602, cdg.insn.Op4.type==o_imm);
-    uval_t imm8 = cdg.insn.Op4.value;
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
-    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-
-    qstring iname;
-    iname.cat_sprnt("_mm%s_shuffle_pd", size == YMM_SIZE ? "256" : "");
-    AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(size, false, true);
-
-    icall.add_argument_reg(l, ti);
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm8, BT_INT8);
-    icall.set_return_reg(d, ti);
-    icall.emit();
-
-    if (size == XMM_SIZE) clear_upper(cdg, d);
-    return MERR_OK;
-}
-
-merror_t handle_vpermpd(codegen_t &cdg) {
-    // vpermpd is AVX2, YMM only usually.
-    // vpermpd ymm1, ymm2/m256, imm8
-    int size = YMM_SIZE;
-    if (!is_ymm_reg(cdg.insn.Op1)) {
-        // Should not happen for vpermpd, but check
-        size = XMM_SIZE;
-    }
-
-    QASSERT(0xA0603, cdg.insn.Op3.type==o_imm);
-    uval_t imm8 = cdg.insn.Op3.value;
-    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-
-    AVXIntrinsic icall(&cdg, "_mm256_permute4x64_pd");
-    tinfo_t ti = get_type_robust(size, false, true);
-
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm8, BT_INT8);
-    icall.set_return_reg(d, ti);
-    icall.emit();
-
-    return MERR_OK;
-}
-
 merror_t handle_vzeroupper_nop(codegen_t &) { return MERR_OK; }
 
 merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
@@ -356,7 +356,7 @@ merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
 
     // AVX2 allows register source for vbroadcastss/sd.
     // We use load_op_reg_or_mem to handle both memory and register operands.
-    mreg_t src = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t scalar = cdg.mba->alloc_kreg(scalar_size);
@@ -422,8 +422,8 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
                      (cdg.insn.itype >= NN_vcmpeqsd && cdg.insn.itype <= NN_vcmptrue_ussd);
     uint8 pred = get_cmp_predicate(cdg.insn.itype);
 
-    mreg_t a = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
-    mreg_t b = load_op_reg_or_mem(cdg, 2, cdg.insn.Op3);
+    AvxOpLoader a(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *suf = is_scalar ? (is_double ? "sd" : "ss") : (is_double ? "pd" : "ps");
@@ -445,7 +445,7 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
 merror_t handle_vpcmp_int(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *op = nullptr;
@@ -496,8 +496,8 @@ merror_t handle_vblendv_ps_pd(codegen_t &cdg) {
     int size = get_op_size(cdg.insn);
     bool is_double = (cdg.insn.itype == NN_vblendvpd);
 
-    mreg_t x = load_op_reg_or_mem(cdg, 1, cdg.insn.Op2);
-    mreg_t y = load_op_reg_or_mem(cdg, 2, cdg.insn.Op3);
+    AvxOpLoader x(cdg, 1, cdg.insn.Op2);
+    AvxOpLoader y(cdg, 2, cdg.insn.Op3);
     mreg_t m = reg2mreg(cdg.insn.Op4.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -523,7 +523,7 @@ merror_t handle_vblend_imm_ps_pd(codegen_t &cdg) {
     QASSERT(0xA0604, cdg.insn.Op4.type==o_imm);
     uval_t imm8 = cdg.insn.Op4.value;
 
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 

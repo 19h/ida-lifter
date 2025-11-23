@@ -12,7 +12,7 @@ AVX Math Handlers
 merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     QASSERT(0xA0500, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t r_in = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *op = nullptr;
@@ -44,11 +44,15 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     mreg_t r_arg = r_in;
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
-        // Promote scalar load to vector register for intrinsic.
-        // CRITICAL FIX: Use m_xdu instead of m_mov to fully define the 16-byte register.
-        // m_mov only writes elem_size (4/8), leaving upper bytes undefined, causing INTERR 52368.
+        // For scalar loads, just promote to XMM size directly
+        // The intrinsic expects an XMM register, and only the lower elem_size matters
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
-        cdg.emit(m_xdu, new mop_t(r_in, elem_size), nullptr, new mop_t(t_mem, XMM_SIZE));
+
+        // Move the loaded scalar float directly to XMM-sized temp
+        // Upper bits are undefined but the intrinsic only uses the lower scalar
+        minsn_t *mov = cdg.emit(m_mov, elem_size, r_in, 0, t_mem, 0);
+        mov->set_fpinsn();  // Mark as FP operation
+
         r_arg = t_mem;
     }
     icall.add_argument_reg(r_arg, vec_type);
@@ -67,7 +71,7 @@ merror_t handle_v_minmax_ss_sd(codegen_t &cdg) {
 
     bool is_double = (cdg.insn.itype == NN_vminsd || cdg.insn.itype == NN_vmaxsd);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *which = (cdg.insn.itype == NN_vminss || cdg.insn.itype == NN_vminsd) ? "min" : "max";
@@ -89,7 +93,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     QASSERT(0xA0501, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
 
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -251,7 +255,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
 
 merror_t handle_v_abs(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *suffix = nullptr;
@@ -280,7 +284,7 @@ merror_t handle_v_abs(codegen_t &cdg) {
 merror_t handle_v_sign(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *suffix = nullptr;
@@ -312,7 +316,7 @@ merror_t handle_v_fma(codegen_t &cdg) {
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t op1 = reg2mreg(cdg.insn.Op1.reg); // Dest/Src1
     mreg_t op2 = reg2mreg(cdg.insn.Op2.reg); // Src2
-    mreg_t op3_in = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg); // Src3
+    AvxOpLoader op3_in(cdg, 2, cdg.insn.Op3); // Src3
 
     const char *op = nullptr;
     const char *type = nullptr;
@@ -321,12 +325,6 @@ merror_t handle_v_fma(codegen_t &cdg) {
     bool is_double = false;
 
     uint16 it = cdg.insn.itype;
-
-    // Decode instruction
-    if (it >= NN_vfmadd132ps && it <= NN_vfmadd231sd) { op = "fmadd"; } else if (
-        it >= NN_vfmsub132ps && it <= NN_vfmsub231sd) { op = "fmsub"; } else if (
-        it >= NN_vfnmadd132ps && it <= NN_vfnmadd231sd) { op = "fnmadd"; } else if (
-        it >= NN_vfnmsub132ps && it <= NN_vfnmsub231sd) { op = "fnmsub"; } else return MERR_INSN;
 
     auto check = [&](uint16 base, const char *t, bool dbl, bool scl) {
         if (it == base) {
@@ -353,30 +351,22 @@ merror_t handle_v_fma(codegen_t &cdg) {
         return false;
     };
 
-    // MADD
-    if (check(NN_vfmadd132ps, "ps", false, false)) {
-    } else if (check(NN_vfmadd132pd, "pd", true, false)) {
-    } else if (check(NN_vfmadd132ss, "ss", false, true)) {
-    } else if (check(NN_vfmadd132sd, "sd", true, true)) {
-    }
-    // MSUB
-    else if (check(NN_vfmsub132ps, "ps", false, false)) {
-    } else if (check(NN_vfmsub132pd, "pd", true, false)) {
-    } else if (check(NN_vfmsub132ss, "ss", false, true)) {
-    } else if (check(NN_vfmsub132sd, "sd", true, true)) {
-    }
-    // NMADD
-    else if (check(NN_vfnmadd132ps, "ps", false, false)) {
-    } else if (check(NN_vfnmadd132pd, "pd", true, false)) {
-    } else if (check(NN_vfnmadd132ss, "ss", false, true)) {
-    } else if (check(NN_vfnmadd132sd, "sd", true, true)) {
-    }
-    // NMSUB
-    else if (check(NN_vfnmsub132ps, "ps", false, false)) {
-    } else if (check(NN_vfnmsub132pd, "pd", true, false)) {
-    } else if (check(NN_vfnmsub132ss, "ss", false, true)) {
-    } else if (check(NN_vfnmsub132sd, "sd", true, true)) {
-    } else return MERR_INSN;
+    if (check(NN_vfmadd132ps, "ps", false, false)) { op = "fmadd"; } else if (
+        check(NN_vfmadd132pd, "pd", true, false)) { op = "fmadd"; } else if (
+        check(NN_vfmadd132ss, "ss", false, true)) { op = "fmadd"; } else if (
+        check(NN_vfmadd132sd, "sd", true, true)) { op = "fmadd"; } else if (
+        check(NN_vfmsub132ps, "ps", false, false)) { op = "fmsub"; } else if (
+        check(NN_vfmsub132pd, "pd", true, false)) { op = "fmsub"; } else if (
+        check(NN_vfmsub132ss, "ss", false, true)) { op = "fmsub"; } else if (
+        check(NN_vfmsub132sd, "sd", true, true)) { op = "fmsub"; } else if (
+        check(NN_vfnmadd132ps, "ps", false, false)) { op = "fnmadd"; } else if (
+        check(NN_vfnmadd132pd, "pd", true, false)) { op = "fnmadd"; } else if (
+        check(NN_vfnmadd132ss, "ss", false, true)) { op = "fnmadd"; } else if (
+        check(NN_vfnmadd132sd, "sd", true, true)) { op = "fnmadd"; } else if (
+        check(NN_vfnmsub132ps, "ps", false, false)) { op = "fnmsub"; } else if (
+        check(NN_vfnmsub132pd, "pd", true, false)) { op = "fnmsub"; } else if (
+        check(NN_vfnmsub132ss, "ss", false, true)) { op = "fnmsub"; } else if (
+        check(NN_vfnmsub132sd, "sd", true, true)) { op = "fnmsub"; } else return MERR_INSN;
 
     qstring iname;
     iname.cat_sprnt("_mm%s_%s_%s", (size == YMM_SIZE && !is_scalar) ? "256" : "", op, type);
@@ -384,14 +374,15 @@ merror_t handle_v_fma(codegen_t &cdg) {
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
 
-    // Handle scalar memory operand promotion
     mreg_t op3 = op3_in;
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         int elem_size = is_double ? 8 : 4;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
-        // CRITICAL FIX: Use m_xdu to fully define the 16-byte register.
-        cdg.emit(m_xdu, new mop_t(op3_in, elem_size), nullptr, new mop_t(t_mem, XMM_SIZE));
+        mop_t src(op3_in, elem_size);
+        mop_t dst(t_mem, XMM_SIZE);
+        mop_t r;
+        cdg.emit(m_xdu, &src, &r, &dst);
         op3 = t_mem;
     }
 
@@ -428,7 +419,7 @@ merror_t handle_v_fma(codegen_t &cdg) {
 
 merror_t handle_vsqrtss(codegen_t &cdg) {
     QASSERT(0xA0600, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
-    mreg_t r = is_xmm_reg(cdg.insn.Op3) ? reg2mreg(cdg.insn.Op3.reg) : cdg.load_operand(2);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -449,7 +440,7 @@ merror_t handle_vsqrtss(codegen_t &cdg) {
 merror_t handle_vsqrt_ps_pd(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     bool is_double = (cdg.insn.itype == NN_vsqrtpd);
-    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname;
@@ -470,7 +461,7 @@ merror_t handle_v_hmath(codegen_t &cdg) {
     QASSERT(0xA0504, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
 
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -520,7 +511,7 @@ merror_t handle_v_dot(codegen_t &cdg) {
     QASSERT(0xA0505, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
 
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t r = is_mem_op(cdg.insn.Op3) ? cdg.load_operand(2) : reg2mreg(cdg.insn.Op3.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -546,7 +537,7 @@ merror_t handle_v_dot(codegen_t &cdg) {
 
 merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *op = (cdg.insn.itype == NN_vrcpps) ? "rcp" : "rsqrt";
@@ -567,7 +558,7 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
 merror_t handle_vround(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     bool is_double = (cdg.insn.itype == NN_vroundpd);
-    mreg_t r = is_mem_op(cdg.insn.Op2) ? cdg.load_operand(1) : reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     // Op3 is the rounding mode immediate

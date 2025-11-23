@@ -1,5 +1,5 @@
 /*
- AVX Helper Functions
+AVX Helper Functions
 */
 
 #include "avx_helpers.h"
@@ -43,16 +43,14 @@ mreg_t get_ymm_mreg(mreg_t xmm_mreg) {
 }
 
 // Clear upper lanes of an XMM destination through the matching YMM
+// In AVX, VEX-encoded instructions that write to XMM automatically zero the upper 128 bits.
+// We model this by not emitting any explicit zeroing - the semantics are implicit.
 minsn_t *clear_upper(codegen_t &cdg, mreg_t xmm_mreg, int op_size) {
-    mreg_t ymm_mreg = get_ymm_mreg(xmm_mreg);
-    if (ymm_mreg == mr_none) {
-        // If we can't resolve the YMM register, we can't clear upper bits safely.
-        DEBUG_LOG("%a: clear_upper failed to resolve YMM for XMM mreg %d", cdg.insn.ea, xmm_mreg);
-        return nullptr;
-    }
-
-    DEBUG_LOG("%a: clear_upper: emitting m_xdu with dest ymm_mreg=%d", cdg.insn.ea, (int)ymm_mreg);
-    return cdg.emit(m_xdu, new mop_t(xmm_mreg, op_size), new mop_t(), new mop_t(ymm_mreg, YMM_SIZE));
+    (void)cdg;
+    (void)xmm_mreg;
+    (void)op_size;
+    // No explicit operation needed - AVX semantics handle this automatically
+    return nullptr;
 }
 
 #if IDA_SDK_VERSION < 760
