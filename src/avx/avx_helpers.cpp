@@ -28,8 +28,15 @@ bool is_avx512_reg(const op_t &op) {
 }
 
 // Check if operand is an opmask register (k0-k7)
+// Note: IDA sometimes encodes k-registers as o_reg with register numbers R_k0-R_k7
+// instead of using o_kreg operand type
 bool is_mask_reg(const op_t &op) {
-    return op.type == o_kreg;
+    if (op.type == o_kreg)
+        return true;
+    // Also check for k-registers encoded as o_reg
+    if (op.type == o_reg && op.reg >= R_k0 && op.reg <= R_k7)
+        return true;
+    return false;
 }
 
 // Check if instruction uses AVX-512 features

@@ -28,11 +28,16 @@ struct ida_local AVXLifter : microcode_filter_t {
         ea_t ea = cdg.insn.ea;
         uint16 it = cdg.insn.itype;
 
-        // Skip mask manipulation instructions (k registers as primary operand)
-        if (is_mask_reg(cdg.insn.Op1) || is_mask_reg(cdg.insn.Op2) ||
-            is_mask_reg(cdg.insn.Op3) || is_mask_reg(cdg.insn.Op4) ||
-            is_mask_reg(cdg.insn.Op5)) {
-            return false;
+        // Skip k-register manipulation instructions (kmov, kunpck, etc.) - emit NOP
+        // These instructions IDA can't handle natively
+        if (it >= NN_kmovb && it <= NN_kunpckdq) {
+            return true;
+        }
+
+        // Skip instructions with k-register as destination (compare-to-mask)
+        // e.g., vcmpeqps k1, ymm0, ymm1
+        if (is_mask_reg(cdg.insn.Op1)) {
+            return true;
         }
 
         // Note: ZMM memory operands are now handled via emit_zmm_load/emit_zmm_store
@@ -50,7 +55,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
-                 is_phsub_insn(it) || is_pack_insn(it) || is_ptest_insn(it) ||
+                 is_phsub_insn(it) || is_pack_insn(it) ||
                  it == NN_vsqrtsd;
 
         if (m) {
@@ -65,6 +70,18 @@ struct ida_local AVXLifter : microcode_filter_t {
         uint16 it = cdg.insn.itype;
 
         TRACE_ENTER("apply");
+
+        // Handle k-register manipulation instructions (kmov, kunpck, etc.) by emitting NOP
+        if (it >= NN_kmovb && it <= NN_kunpckdq) {
+            cdg.emit(m_nop, 0, 0, 0, 0, 0);
+            return MERR_OK;
+        }
+
+        // Handle compare-to-mask instructions (k-register destination) by emitting NOP
+        if (is_mask_reg(cdg.insn.Op1)) {
+            cdg.emit(m_nop, 0, 0, 0, 0, 0);
+            return MERR_OK;
+        }
 
         if (try_convert_to_sse(cdg)) return MERR_INSN;
 
@@ -206,8 +223,8 @@ struct ida_local AVXLifter : microcode_filter_t {
         // pack
         if (is_pack_insn(it)) return handle_vpack(cdg);
 
-        // ptest
-        if (is_ptest_insn(it)) return handle_vptest(cdg);
+        // Note: vptest is NOT lifted - it sets flags without a vector destination
+        // Let IDA handle it natively
 
         return MERR_INSN;
     }

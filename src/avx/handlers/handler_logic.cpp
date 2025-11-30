@@ -839,12 +839,20 @@ merror_t handle_vunpck(codegen_t &cdg) {
 // vpbroadcastd/q from XMM register or memory
 // vpbroadcastd ymm1, xmm2/m32
 // vpbroadcastq ymm1, xmm2/m64
+// Note: AVX-512 variant can broadcast from GPR - we fall back to IDA for that
 merror_t handle_vpbroadcast_d_q(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE :
+               is_ymm_reg(cdg.insn.Op1) ? YMM_SIZE : ZMM_SIZE;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     bool is_qword = (cdg.insn.itype == NN_vpbroadcastq);
     int elem_size = is_qword ? 8 : 4;
+
+    // AVX-512 variant can broadcast from GPR - fall back to IDA for that case
+    // Check if source is NOT a vector register and NOT memory
+    if (!is_vector_reg(cdg.insn.Op2) && !is_mem_op(cdg.insn.Op2)) {
+        return MERR_INSN;  // Let IDA handle GPR source
+    }
 
     // Source can be XMM register or memory
     mreg_t src;
