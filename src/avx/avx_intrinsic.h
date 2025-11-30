@@ -38,6 +38,9 @@ struct ida_local AVXIntrinsic {
 
     void add_argument_imm(uint64 value, type_t bt);
 
+    // Add mask argument (__mmask8, __mmask16, __mmask32, __mmask64)
+    void add_argument_mask(mreg_t mreg, int num_elements);
+
     minsn_t *emit();
 };
 

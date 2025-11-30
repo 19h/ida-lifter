@@ -120,4 +120,40 @@ bool is_round_insn(uint16 it);
 // Predicate extraction
 uint8 get_cmp_predicate(uint16 it);
 
+// AVX-512 Masking Info
+// This structure captures all mask-related information for an instruction
+struct MaskInfo {
+    bool has_mask;          // true if instruction uses opmask (k1-k7)
+    bool is_zeroing;        // true if zero-masking, false if merge-masking
+    mreg_t mask_reg;        // mreg for the mask register
+    int num_elements;       // number of elements being masked (for mask type selection)
+
+    MaskInfo() : has_mask(false), is_zeroing(false), mask_reg(mr_none), num_elements(0) {}
+
+    // Initialize from instruction context
+    static MaskInfo from_insn(const insn_t &insn, int elem_size) {
+        MaskInfo info;
+        info.has_mask = has_opmask(insn);
+        info.is_zeroing = is_zero_masking(insn);
+
+        if (info.has_mask) {
+            info.mask_reg = reg2mreg(insn.Op6.reg);
+
+            // Calculate number of elements based on vector size and element size
+            int vec_size = ZMM_SIZE; // Default to ZMM for AVX-512 masked operations
+            if (is_ymm_reg(insn.Op1)) vec_size = YMM_SIZE;
+            else if (is_xmm_reg(insn.Op1)) vec_size = XMM_SIZE;
+
+            info.num_elements = vec_size / elem_size;
+        }
+        return info;
+    }
+};
+
+// Generate masked intrinsic name
+// base_name: e.g., "_mm512_add_ps"
+// mask_info: masking information
+// Returns: e.g., "_mm512_mask_add_ps" or "_mm512_maskz_add_ps"
+qstring make_masked_intrinsic_name(const char *base_name, const MaskInfo &mask_info);
+
 #endif // IDA_SDK_VERSION >= 750

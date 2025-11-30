@@ -115,4 +115,42 @@ bool store_operand_hack(codegen_t &cdg, int n, const mop_t &mop, int flags, mins
 }
 #endif
 
+// AVX-512 masking support
+
+// Check if instruction has opmask in Op6 (EVEX encoding stores mask in Op6)
+bool has_opmask(const insn_t &insn) {
+    // Op6 holds the opmask register in EVEX-encoded instructions
+    // A valid opmask is k1-k7 (k0 means no masking)
+    if (insn.Op6.type == o_kreg && insn.Op6.reg >= R_k1 && insn.Op6.reg <= R_k7)
+        return true;
+    return false;
+}
+
+// Check if instruction uses zero-masking (EVEX.z bit)
+bool is_zero_masking(const insn_t &insn) {
+    // EVEX.z bit is stored in evex_flags (Op6.specflag2)
+    return (insn.evex_flags & EVEX_z) != 0;
+}
+
+// Get the opmask register number (0-7 for k0-k7)
+int get_opmask_reg(const insn_t &insn) {
+    if (insn.Op6.type == o_kreg) {
+        return insn.Op6.reg - R_k0;
+    }
+    return 0; // k0 = no masking
+}
+
+// Get mreg for opmask register
+mreg_t get_opmask_mreg(const insn_t &insn, codegen_t &cdg) {
+    if (!has_opmask(insn))
+        return mr_none;
+
+    // Load the opmask register value
+    // Opmask registers are 64-bit (can mask up to 64 elements for byte operations)
+    // For ZMM with 32-bit elements, only 16 bits are used
+    // For ZMM with 64-bit elements, only 8 bits are used
+    mreg_t kreg = reg2mreg(insn.Op6.reg);
+    return kreg;
+}
+
 #endif // IDA_SDK_VERSION >= 750

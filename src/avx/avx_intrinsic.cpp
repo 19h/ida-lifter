@@ -167,6 +167,46 @@ void AVXIntrinsic::add_argument_imm(uint64 value, type_t bt) {
     call_info->solid_args++;
 }
 
+void AVXIntrinsic::add_argument_mask(mreg_t mreg, int num_elements) {
+    // Determine mask type based on number of elements
+    // __mmask8  for 8 elements (e.g., ZMM with 64-bit elements)
+    // __mmask16 for 16 elements (e.g., ZMM with 32-bit elements, or YMM with 16-bit)
+    // __mmask32 for 32 elements (e.g., ZMM with 16-bit elements)
+    // __mmask64 for 64 elements (e.g., ZMM with 8-bit elements)
+
+    type_t bt;
+    int size;
+    if (num_elements <= 8) {
+        bt = BT_INT8;
+        size = 1;
+    } else if (num_elements <= 16) {
+        bt = BT_INT16;
+        size = 2;
+    } else if (num_elements <= 32) {
+        bt = BT_INT32;
+        size = 4;
+    } else {
+        bt = BT_INT64;
+        size = 8;
+    }
+
+    tinfo_t ti(bt);
+    mcallarg_t ca(mop_t(mreg, size));
+    ca.type = ti;
+    ca.size = size;
+
+    // Assign dummy stack location to satisfy verification
+    int align = size;
+    if (align < 8) align = 8;
+
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
+    call_info->args.add(ca);
+    call_info->solid_args++;
+}
+
 minsn_t *AVXIntrinsic::emit() {
     if (!mov_insn) {
         ERROR_LOG("Attempted to emit intrinsic without return register set");

@@ -224,4 +224,52 @@ bool is_round_insn(uint16 it) {
     return it == NN_vroundps || it == NN_vroundpd;
 }
 
+qstring make_masked_intrinsic_name(const char *base_name, const MaskInfo &mask_info) {
+    if (!mask_info.has_mask) {
+        return qstring(base_name);
+    }
+
+    // Find the position after "_mm" or "_mm256" or "_mm512" prefix
+    // Pattern: _mm[256|512]_<op>_<type>
+    // Masked: _mm[256|512]_mask[z]_<op>_<type>
+    qstring result;
+    const char *p = base_name;
+
+    // Copy "_mm" prefix
+    if (strncmp(p, "_mm", 3) == 0) {
+        result.append("_mm");
+        p += 3;
+
+        // Check for "256" or "512" suffix
+        if (strncmp(p, "512", 3) == 0) {
+            result.append("512");
+            p += 3;
+        } else if (strncmp(p, "256", 3) == 0) {
+            result.append("256");
+            p += 3;
+        }
+
+        // Skip the underscore before operation name
+        if (*p == '_') {
+            result.append("_");
+            p++;
+        }
+
+        // Insert "mask" or "maskz"
+        if (mask_info.is_zeroing) {
+            result.append("maskz_");
+        } else {
+            result.append("mask_");
+        }
+
+        // Append the rest (operation and type suffix)
+        result.append(p);
+    } else {
+        // Fallback: just return original name
+        result = base_name;
+    }
+
+    return result;
+}
+
 #endif // IDA_SDK_VERSION >= 750

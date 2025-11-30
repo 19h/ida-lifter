@@ -114,6 +114,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     const char *fmt = nullptr;
     bool is_int = false;
     bool is_double = false;
+    int elem_size = 4; // Default to 32-bit elements
 
     switch (cdg.insn.itype) {
         // FP basic
@@ -127,15 +128,19 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             break;
         case NN_vaddpd: fmt = "_mm%s_add_pd";
             is_double = true;
+            elem_size = 8;
             break;
         case NN_vsubpd: fmt = "_mm%s_sub_pd";
             is_double = true;
+            elem_size = 8;
             break;
         case NN_vmulpd: fmt = "_mm%s_mul_pd";
             is_double = true;
+            elem_size = 8;
             break;
         case NN_vdivpd: fmt = "_mm%s_div_pd";
             is_double = true;
+            elem_size = 8;
             break;
         // FP min/max
         case NN_vminps: fmt = "_mm%s_min_ps";
@@ -144,22 +149,28 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             break;
         case NN_vminpd: fmt = "_mm%s_min_pd";
             is_double = true;
+            elem_size = 8;
             break;
         case NN_vmaxpd: fmt = "_mm%s_max_pd";
             is_double = true;
+            elem_size = 8;
             break;
         // INT add/sub
         case NN_vpaddb: fmt = "_mm%s_add_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpsubb: fmt = "_mm%s_sub_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpaddw: fmt = "_mm%s_add_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpsubw: fmt = "_mm%s_sub_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpaddd: fmt = "_mm%s_add_epi32";
             is_int = true;
@@ -169,35 +180,45 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             break;
         case NN_vpaddq: fmt = "_mm%s_add_epi64";
             is_int = true;
+            elem_size = 8;
             break;
         case NN_vpsubq: fmt = "_mm%s_sub_epi64";
             is_int = true;
+            elem_size = 8;
             break;
         // INT saturating add/sub
         case NN_vpaddsb: fmt = "_mm%s_adds_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpsubsb: fmt = "_mm%s_subs_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpaddsw: fmt = "_mm%s_adds_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpsubsw: fmt = "_mm%s_subs_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         // INT min/max (signed)
         case NN_vpminsb: fmt = "_mm%s_min_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpmaxsb: fmt = "_mm%s_max_epi8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpminsw: fmt = "_mm%s_min_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmaxsw: fmt = "_mm%s_max_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpminsd: fmt = "_mm%s_min_epi32";
             is_int = true;
@@ -208,15 +229,19 @@ merror_t handle_v_math_p(codegen_t &cdg) {
         // INT min/max (unsigned)
         case NN_vpminub: fmt = "_mm%s_min_epu8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpmaxub: fmt = "_mm%s_max_epu8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpminuw: fmt = "_mm%s_min_epu16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmaxuw: fmt = "_mm%s_max_epu16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpminud: fmt = "_mm%s_min_epu32";
             is_int = true;
@@ -227,15 +252,18 @@ merror_t handle_v_math_p(codegen_t &cdg) {
         // INT multiply
         case NN_vpmullw: fmt = "_mm%s_mullo_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmulld: fmt = "_mm%s_mullo_epi32";
             is_int = true;
             break;
         case NN_vpmulhw: fmt = "_mm%s_mulhi_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmulhuw: fmt = "_mm%s_mulhi_epu16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmuldq: fmt = "_mm%s_mul_epi32";
             is_int = true;
@@ -246,25 +274,49 @@ merror_t handle_v_math_p(codegen_t &cdg) {
         // INT average
         case NN_vpavgb: fmt = "_mm%s_avg_epu8";
             is_int = true;
+            elem_size = 1;
             break;
         case NN_vpavgw: fmt = "_mm%s_avg_epu16";
             is_int = true;
+            elem_size = 2;
             break;
         // INT multiply-add
         case NN_vpmaddwd: fmt = "_mm%s_madd_epi16";
             is_int = true;
+            elem_size = 2;
             break;
         case NN_vpmaddubsw: fmt = "_mm%s_maddubs_epi16";
             is_int = true;
+            elem_size = 1;
             break;
         default: QASSERT(0xA0502, false);
     }
 
-    qstring iname;
-    iname.cat_sprnt(fmt, get_size_prefix(size));
+    // Check for AVX-512 masking
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+
+    // Build base intrinsic name
+    qstring base_name;
+    base_name.cat_sprnt(fmt, get_size_prefix(size));
+
+    // Transform to masked name if needed
+    qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);
     AVXIntrinsic icall(&cdg, iname.c_str());
 
     tinfo_t ti = get_type_robust(size, is_int, is_double);
+
+    // For merge-masking: src, k, a, b -> result
+    // For zero-masking:  k, a, b -> result
+    // For no masking:    a, b -> result
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            // Merge-masking: first arg is src (original dest value)
+            icall.add_argument_reg(d, ti);
+        }
+        // Add mask argument
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
     icall.set_return_reg(d, ti);
