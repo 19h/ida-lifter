@@ -14,7 +14,9 @@ AVX Utility Functions and Classification
 #include "avx_types.h"
 #include "avx_helpers.h"
 
-// RAII helper to load operand into a register and free it if it's a temporary kreg
+// Helper to load operand into a register
+// Note: We do NOT free kregs because the emitted microcode references them.
+// IDA's microcode engine manages the lifetime of values in emitted instructions.
 struct AvxOpLoader {
     codegen_t &cdg;
     mreg_t reg;
@@ -33,11 +35,8 @@ struct AvxOpLoader {
         }
     }
 
-    ~AvxOpLoader() {
-        if (is_kreg) {
-            cdg.mba->free_kreg(reg, size);
-        }
-    }
+    // Do not free kregs - they are used in emitted microcode
+    ~AvxOpLoader() = default;
 
     // Disable copy
     AvxOpLoader(const AvxOpLoader &) = delete;

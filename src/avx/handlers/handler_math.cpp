@@ -236,6 +236,13 @@ merror_t handle_v_math_p(codegen_t &cdg) {
         case NN_vpavgw: fmt = "_mm%s_avg_epu16";
             is_int = true;
             break;
+        // INT multiply-add
+        case NN_vpmaddwd: fmt = "_mm%s_madd_epi16";
+            is_int = true;
+            break;
+        case NN_vpmaddubsw: fmt = "_mm%s_maddubs_epi16";
+            is_int = true;
+            break;
         default: QASSERT(0xA0502, false);
     }
 

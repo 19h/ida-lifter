@@ -87,25 +87,72 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
 }
 
 merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
+    // Determine operand sizes
+    int size;
+    bool is_int = (cdg.insn.itype == NN_vmovdqa || cdg.insn.itype == NN_vmovdqu);
+    bool is_double = (cdg.insn.itype == NN_vmovapd || cdg.insn.itype == NN_vmovupd);
+
     if (is_avx_reg(cdg.insn.Op1)) {
-        int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-        AvxOpLoader l_loader(cdg, 1, cdg.insn.Op2);
-        mreg_t l = l_loader.reg;
-        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        // LOAD case: vmovaps reg, mem/reg
+        size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+        mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
 
-        mop_t src(l, size);
-        mop_t dst(d, size);
-        mop_t r;
-        cdg.emit(m_mov, &src, &r, &dst);
+        if (is_avx_reg(cdg.insn.Op2)) {
+            // Register-to-register move: use loadu intrinsic with reg as "source"
+            mreg_t src = reg2mreg(cdg.insn.Op2.reg);
 
-        if (size == XMM_SIZE) clear_upper(cdg, d);
+            qstring iname;
+            if (is_int) {
+                // For integer moves, just use a move intrinsic
+                iname.cat_sprnt("_mm%s_loadu_si%d", size == YMM_SIZE ? "256" : "", size * 8);
+            } else {
+                iname.cat_sprnt("_mm%s_loadu_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+            }
+
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            tinfo_t ti = get_type_robust(size, is_int, is_double);
+            icall.add_argument_reg(src, ti);
+            icall.set_return_reg(dst, ti);
+            icall.emit();
+        } else {
+            // Memory-to-register: load from memory
+            QASSERT(0xA0310, is_mem_op(cdg.insn.Op2));
+
+            // Load the value from memory (not the address)
+            mreg_t loaded = cdg.load_operand(1);
+
+            qstring iname;
+            if (is_int) {
+                iname.cat_sprnt("_mm%s_loadu_si%d", size == YMM_SIZE ? "256" : "", size * 8);
+            } else {
+                iname.cat_sprnt("_mm%s_loadu_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+            }
+
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            tinfo_t ti = get_type_robust(size, is_int, is_double);
+            icall.add_argument_reg(loaded, ti);
+            icall.set_return_reg(dst, ti);
+            icall.emit();
+        }
+
+        if (size == XMM_SIZE) clear_upper(cdg, dst);
         return MERR_OK;
     }
 
-    QASSERT(0xA0304, is_mem_op(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
-    int size = is_xmm_reg(cdg.insn.Op2) ? XMM_SIZE : YMM_SIZE;
-    mreg_t s = reg2mreg(cdg.insn.Op2.reg);
-    store_operand_hack(cdg, 0, mop_t(s, size));
+    // STORE case: vmovaps mem, reg
+    if (!is_mem_op(cdg.insn.Op1) || !is_avx_reg(cdg.insn.Op2)) {
+        return MERR_INSN;
+    }
+
+    size = is_xmm_reg(cdg.insn.Op2) ? XMM_SIZE : YMM_SIZE;
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+
+    // Use store_operand_hack for stores (like other handlers do)
+    mop_t src_mop(src, size);
+    if (!store_operand_hack(cdg, 0, src_mop)) {
+        return MERR_INSN;
+    }
+
     return MERR_OK;
 }
 

@@ -139,6 +139,7 @@ struct ida_local AVXLifter : microcode_filter_t {
         // blend
         if (it == NN_vblendvps || it == NN_vblendvpd) return handle_vblendv_ps_pd(cdg);
         if (it == NN_vblendps || it == NN_vblendpd) return handle_vblend_imm_ps_pd(cdg);
+        if (it == NN_vpblendd || it == NN_vpblendw || it == NN_vpblendvb) return handle_vblend_int(cdg);
 
         // maskmov
         if (is_maskmov_insn(it)) return handle_vmaskmov_ps_pd(cdg);

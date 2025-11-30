@@ -289,8 +289,7 @@ merror_t handle_vpermpd(codegen_t &cdg) {
 }
 
 merror_t handle_v_perm_int(codegen_t &cdg) {
-    // vpermq and vpermd are AVX2 (YMM)
-    int size = YMM_SIZE;
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     if (cdg.insn.itype == NN_vpermq) {
@@ -299,12 +298,12 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
         QASSERT(0xA0606, cdg.insn.Op3.type == o_imm);
 
         AVXIntrinsic icall(&cdg, "_mm256_permute4x64_epi64");
-        tinfo_t ti = get_type_robust(size, true, false);
+        tinfo_t ti = get_type_robust(YMM_SIZE, true, false);
         icall.add_argument_reg(s, ti);
         icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
         icall.set_return_reg(d, ti);
         icall.emit();
-    } else {
+    } else if (cdg.insn.itype == NN_vpermd) {
         // vpermd ymm1, ymm2, ymm3/m256
         // _mm256_permutevar8x32_epi32(src, idx)
         // Instruction: vpermd dest, idx, src
@@ -312,11 +311,40 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
         AvxOpLoader src(cdg, 2, cdg.insn.Op3);
 
         AVXIntrinsic icall(&cdg, "_mm256_permutevar8x32_epi32");
-        tinfo_t ti = get_type_robust(size, true, false);
+        tinfo_t ti = get_type_robust(YMM_SIZE, true, false);
         icall.add_argument_reg(src, ti);
         icall.add_argument_reg(idx, ti);
         icall.set_return_reg(d, ti);
         icall.emit();
+    } else if (cdg.insn.itype == NN_vpermilps || cdg.insn.itype == NN_vpermilpd) {
+        // vpermilps/vpermilpd xmm1, xmm2, imm8 or xmm1, xmm2, xmm3/m128
+        bool is_double = (cdg.insn.itype == NN_vpermilpd);
+        AvxOpLoader s(cdg, 1, cdg.insn.Op2);
+
+        if (cdg.insn.Op3.type == o_imm) {
+            // Immediate form: _mm_permute_ps/_mm256_permute_ps
+            qstring iname;
+            iname.cat_sprnt("_mm%s_permute_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            tinfo_t ti = get_type_robust(size, false, is_double);
+            icall.add_argument_reg(s, ti);
+            icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+            icall.set_return_reg(d, ti);
+            icall.emit();
+        } else {
+            // Variable form: _mm_permutevar_ps/_mm256_permutevar_ps
+            AvxOpLoader ctrl(cdg, 2, cdg.insn.Op3);
+            qstring iname;
+            iname.cat_sprnt("_mm%s_permutevar_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            tinfo_t ti = get_type_robust(size, false, is_double);
+            tinfo_t ti_ctrl = get_type_robust(size, true, false); // Control is integer
+            icall.add_argument_reg(s, ti);
+            icall.add_argument_reg(ctrl, ti_ctrl);
+            icall.set_return_reg(d, ti);
+            icall.emit();
+        }
+        if (size == XMM_SIZE) clear_upper(cdg, d);
     }
     return MERR_OK;
 }
@@ -600,6 +628,48 @@ merror_t handle_vmaskmov_ps_pd(codegen_t &cdg) {
     store_operand_hack(cdg, 0, mop_t(res, size));
     cdg.mba->free_kreg(res, size);
 
+    return MERR_OK;
+}
+
+merror_t handle_vblend_int(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+
+    if (cdg.insn.itype == NN_vpblendvb) {
+        // vpblendvb: xmm1, xmm2, xmm3/m128, xmm4
+        mreg_t mask = reg2mreg(cdg.insn.Op4.reg);
+        qstring iname;
+        iname.cat_sprnt("_mm%s_blendv_epi8", size == YMM_SIZE ? "256" : "");
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        tinfo_t ti = get_type_robust(size, true, false);
+        icall.add_argument_reg(l, ti);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_reg(mask, ti);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    } else {
+        // vpblendd/vpblendw: xmm1, xmm2, xmm3/m128, imm8
+        QASSERT(0xA0610, cdg.insn.Op4.type == o_imm);
+        uval_t imm8 = cdg.insn.Op4.value;
+
+        qstring iname;
+        if (cdg.insn.itype == NN_vpblendd) {
+            iname.cat_sprnt("_mm%s_blend_epi32", size == YMM_SIZE ? "256" : "");
+        } else { // NN_vpblendw
+            iname.cat_sprnt("_mm%s_blend_epi16", size == YMM_SIZE ? "256" : "");
+        }
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        tinfo_t ti = get_type_robust(size, true, false);
+        icall.add_argument_reg(l, ti);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_imm(imm8, BT_INT8);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    }
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 

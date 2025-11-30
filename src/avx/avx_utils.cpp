@@ -96,7 +96,7 @@ bool is_packed_minmax_int(uint16 it) {
 
 bool is_int_mul(uint16 it) {
     return it == NN_vpmullw || it == NN_vpmulld || it == NN_vpmulhw || it == NN_vpmulhuw ||
-           it == NN_vpmuldq || it == NN_vpmuludq;
+           it == NN_vpmuldq || it == NN_vpmuludq || it == NN_vpmaddwd || it == NN_vpmaddubsw;
 }
 
 bool is_avg_insn(uint16 it) {
@@ -128,7 +128,7 @@ bool is_shuffle_insn(uint16 it) {
 }
 
 bool is_perm_insn(uint16 it) {
-    return it == NN_vpermq || it == NN_vpermd;
+    return it == NN_vpermq || it == NN_vpermd || it == NN_vpermilps || it == NN_vpermilpd;
 }
 
 bool is_align_insn(uint16 it) {
@@ -175,7 +175,8 @@ bool is_misc_insn(uint16 it) {
 
 bool is_blend_insn(uint16 it) {
     return it == NN_vblendvps || it == NN_vblendvpd ||
-           it == NN_vblendps || it == NN_vblendpd;
+           it == NN_vblendps || it == NN_vblendpd ||
+           it == NN_vpblendd || it == NN_vpblendw || it == NN_vpblendvb;
 }
 
 bool is_maskmov_insn(uint16 it) { return it == NN_vmaskmovps || it == NN_vmaskmovpd; }

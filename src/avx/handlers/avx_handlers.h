@@ -94,6 +94,8 @@ merror_t handle_vblendv_ps_pd(codegen_t &cdg);
 
 merror_t handle_vblend_imm_ps_pd(codegen_t &cdg);
 
+merror_t handle_vblend_int(codegen_t &cdg);
+
 merror_t handle_vmaskmov_ps_pd(codegen_t &cdg);
 
 #endif // IDA_SDK_VERSION >= 750
