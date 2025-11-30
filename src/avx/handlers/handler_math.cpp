@@ -15,52 +15,42 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    const char *op = nullptr;
-    const char *suf = (elem_size == FLOAT_SIZE) ? "ss" : "sd";
+    // Determine microcode opcode (use FP opcodes for floating-point operations)
+    mcode_t opcode;
     switch (cdg.insn.itype) {
         case NN_vaddss:
-        case NN_vaddsd: op = "add";
+        case NN_vaddsd: opcode = m_fadd;
             break;
         case NN_vsubss:
-        case NN_vsubsd: op = "sub";
+        case NN_vsubsd: opcode = m_fsub;
             break;
         case NN_vmulss:
-        case NN_vmulsd: op = "mul";
+        case NN_vmulsd: opcode = m_fmul;
             break;
         case NN_vdivss:
-        case NN_vdivsd: op = "div";
+        case NN_vdivsd: opcode = m_fdiv;
             break;
         default: return MERR_INSN;
     }
 
-    qstring iname;
-    iname.cat_sprnt("_mm_%s_%s", op, suf);
+    // Emit scalar FP operation using native microcode
+    // vaddss xmm1, xmm2, xmm3/mem semantics:
+    // - xmm1[31:0] = xmm2[31:0] op xmm3/mem[31:0]
+    // - xmm1[127:32] = xmm2[127:32] (copy upper bits from first source)
+    // - xmm1[255:128] = 0 (VEX zeros upper bits)
 
-    AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t vec_type = get_type_robust(XMM_SIZE, false, (elem_size == DOUBLE_SIZE));
-
-    icall.add_argument_reg(l, vec_type);
-
-    mreg_t r_arg = r_in;
-    mreg_t t_mem = mr_none;
-    if (is_mem_op(cdg.insn.Op3)) {
-        // For scalar loads, just promote to XMM size directly
-        // The intrinsic expects an XMM register, and only the lower elem_size matters
-        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
-
-        // Move the loaded scalar float directly to XMM-sized temp
-        // Upper bits are undefined but the intrinsic only uses the lower scalar
-        minsn_t *mov = cdg.emit(m_mov, elem_size, r_in, 0, t_mem, 0);
-        mov->set_fpinsn();  // Mark as FP operation
-
-        r_arg = t_mem;
+    // First, copy the full XMM from source 2 to dest (preserves upper bits)
+    if (l != d) {
+        cdg.emit(m_mov, XMM_SIZE, l, 0, d, 0);
     }
-    icall.add_argument_reg(r_arg, vec_type);
 
-    icall.set_return_reg(d, vec_type);
-    icall.emit();
-
-    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    // Then do the scalar operation on the low element
+    mreg_t r = r_in;
+    mop_t l_mop(l, elem_size);
+    mop_t r_mop(r, elem_size);
+    mop_t d_mop(d, elem_size);
+    cdg.emit(opcode, &l_mop, &r_mop, &d_mop);
+    // Note: m_f* opcodes are implicitly floating-point, no need for set_fpinsn()
 
     clear_upper(cdg, d);
     return MERR_OK;

@@ -1,0 +1,341 @@
+C-tree Verification
+
+Code	Function	Condition / Meaning
+50670	cnumber_t::verify	nf.opnum > UA_MAXOP: Wrong operand number in number format.
+50671	cnumber_t::verify	Unexpected flags set (off, seg, manual, stkvar, fltnum) for the operand.
+50672	cnumber_t::verify	`nf.is_enum()
+50673	cfunc_t::verify_item	`item->op < cot_empty
+50674	cfunc_t::verify_item	item->label_num < -1: Wrong item label number.
+52519	cfunc_t::verify_item	item->label_num > qty*qty: Item label number unreasonably large.
+50676	cfunc_t::verify_switch	sw.cases.empty(): Switch statement has no cases.
+50677	cfunc_t::verify_switch	Duplicate default switch case detected.
+50678	cfunc_t::verify_switch	Duplicate switch case value detected.
+50679	cfunc_t::verify_insn	cit_goto: Goto instruction without a valid label (label_num < 0).
+50680	cfunc_t::verify_insn	cit_asm: Empty assembler instruction list.
+52707	cfunc_t::verify_insn	cit_try: __wind (Windows SEH) must have exactly one __unwind handler.
+52708	cfunc_t::verify_insn	cit_try: __unwind handler must be a "catch all".
+52738	cfunc_t::verify_insn	cit_try: try block without any catch clauses.
+50681	cfunc_t::verify_insn	cit_block: Block statement missing address (when ea == BADADDR).
+50682	cfunc_t::verify_insn	cit_expr: Missing expression address.
+50683	cfunc_t::verify_insn	cit_if: Mismatch in if-statement address and its condition expression address.
+50684	cfunc_t::verify_insn	cit_for/while/do/switch/asm: Missing statement address.
+52561	cfunc_t::verify_expr	cot_tern: Incompatible types for Y and Z operands in ternary operator.
+50685	cfunc_t::verify_expr	Expression has illegal property bits set.
+50686	cfunc_t::verify_expr	Broken tree structure: Expression is not a child of its parent.
+50687	cfunc_t::verify_expr	cot_empty: Bad parent for an empty expression.
+50688	cfunc_t::verify_expr	Missing expression type (and not an instruction/helper).
+50689	cfunc_t::verify_expr	Incorrect expression type (incomplete type used where not allowed).
+51084	cfunc_t::verify_expr	cot_empty: Illegal empty expression (allowed only in for or sizeof).
+50690	cfunc_t::verify_expr	cot_insn: Type of transient statement-expression is meaningless.
+50691	cfunc_t::verify_expr	Unprintable expression type.
+50692	cfunc_t::verify_expr	Integer operator has floating point arguments.
+50693	cfunc_t::verify_expr	Floating operator is not marked as such.
+50694	cfunc_t::verify_expr	Floating operator does not yield a floating type.
+50695	cfunc_t::verify_expr	Wrong expression type (calculated type differs from stored type).
+50696	cfunc_t::verify_expr	Labels are not permitted in expressions (at CMAT_CASTED maturity).
+50697	cfunc_t::verify_expr	cot_cast: A pointer cannot be cast into a floating value.
+50698	cfunc_t::verify_expr	cot_asg: Non-pointer assigned to a pointer type.
+50699	cfunc_t::verify_expr	cot_add/asgadd: Two pointers cannot be added to each other.
+50700	cfunc_t::verify_expr	Relational op: Incompatible pointer types.
+50701	cfunc_t::verify_expr	cot_sub: A pointer cannot be a subtrahend (unless subtracting from another pointer).
+50703	cfunc_t::verify_expr	cot_idx: Index operator applied to non-pointer/non-array.
+50704	cfunc_t::verify_expr	Wrong expression code (default case in verification switch).
+50705	cfunc_t::verify_expr	cot_call: Call of a non-function.
+50706	cfunc_t::verify_expr	cot_call: Incompatible call argument type (Commented out in source).
+50707	cfunc_t::verify_expr	Bad use of a struct/union type.
+50708	cfunc_t::verify_expr	Unacceptable lvalue.
+50709	cfunc_t::verify_expr	Wrong operation sign (sign-sensitive op with mismatching operand signs).
+50710	cfunc_t::verify_expr	cot_cast: Casting to array is forbidden.
+50711	cfunc_t::verify_expr	cot_cast: Casting to function is forbidden.
+50712	cfunc_t::verify_expr	cot_type: Missing cast type.
+51602	cfunc_t::verify_expr	cot_add: Unexpected pointer result of an addition (parent is cot_ptr).
+50713	cfunc_t::verify_expr	cot_ptr: Unexpected type of *& operators.
+50714	cfunc_t::verify_expr	cot_ptr: Wrong dereference size (ptrsize <= 0).
+50717	cfunc_t::verify_expr	cot_ptr: Only pointers and arrays can be dereferenced.
+50715	cfunc_t::verify_expr	cot_ptr: Unexpected dereference size (pointer).
+50716	cfunc_t::verify_expr	cot_ptr: Unexpected size of dereferencing an array.
+52818	cfunc_t::verify_expr	cot_call: functype is not a function.
+50718	cfunc_t::verify_expr	cot_call: Call of a non-function (Duplicate of 50705).
+50719	cfunc_t::verify_expr	cot_memref: Member dereference of non-struct/union.
+50922	cfunc_t::verify_expr	cot_memref: Dereferencing of non-existing struct/union member.
+50720	cfunc_t::verify_expr	cot_memref: Expression type must be equal to the member type.
+52378	cfunc_t::verify_expr	cot_num: Enum type name mismatch.
+52380	cfunc_t::verify_expr	cot_num: Wrong stroff expression type (Commented out).
+52381	cfunc_t::verify_expr	cot_num: Wrong enum/stroff reference (at CMAT_FINAL).
+50722	cfunc_t::verify_expr	cot_var: Bad reference to a local variable (index out of bounds).
+50723	cfunc_t::verify_expr	cot_helper: Regular helpers can only be called.
+50724	cfunc_t::verify_expr	cot_str: Missing string constant.
+50725	cfunc_t::verify_expr	cot_insn: Transient instruction-expressions illegal after CMAT_TRANS1.
+50726	cfunc_t::verify	Function entry is not marked as is_func (flags check).
+50727	label_info_collector_t	Duplicate label detected.
+50728	label_info_collector_t	Goto to non-existing label.
+50729	label_info_collector_t	Unused label detected (when FORBID_UNUSED_LABELS is set).
+50730	item_address_collector_t	Broken tree structure (duplicate item pointer).
+50731	leak_verifier_t	Detected memory leak of citem_t objects.
+50915	citem_t::operator new	Allocator returned the same address twice.
+Microcode Verification
+
+Code	Function	Condition / Meaning
+50733	mcallinfo_t::verify	Invalid calling convention (CM_CC_INVALID).
+50734	mcallinfo_t::verify	Incorrect argument type.
+50735	mcallinfo_t::verify	Argument size and its type size mismatch.
+50736	mcallinfo_t::verify	Zero sized argument.
+51066	mcallinfo_t::verify	Argument defined at non-existent address.
+50732	mcallinfo_t::verify	Wrong argument location (verify_argloc failed).
+50737	mcallinfo_t::verify	Argument of mop_z (empty) type.
+52016	mcallinfo_t::verify	Impossible argument type.
+50738	mcallinfo_t::verify	Too short argument list (solid_args > args.size()).
+50739	mcallinfo_t::verify	Incorrect return type.
+51087	mcallinfo_t::verify	Passthrough registers exist but HAS_PASSREGS is not set.
+50991	mcallinfo_t::verify	Passthrough registers must be part of SPOILED.
+50740	mcallinfo_t::verify	Return registers must be part of SPOILED.
+50741	mcallinfo_t::verify	DEAD_REGS must be part of return registers.
+50742	mcallinfo_t::verify	Call retval size is NOSIZE.
+52862	mcallinfo_t::verify	Wrong size of return type (UDT).
+50743	mcallinfo_t::verify	Size of registers returned mismatches the retval size.
+50744	mcallinfo_t::verify	Size of return registers mismatches retval size (with dead regs).
+50745	mcallinfo_t::verify	Size of return registers mismatches retval size.
+50746	mcases_t::verify	Switch sizes of values and targets mismatch.
+50747	mcases_t::verify	Switch has no targets.
+50748	mcases_t::verify	Switch has only single 'default' case.
+50750	mcases_t::verify	Switch has duplicate 'default' cases.
+50751	mcases_t::verify	Switch has duplicate case value.
+50752	mcases_t::verify	Switch has wrong case target (block number out of range).
+50753	mcases_t::verify	Switch has duplicate target block.
+50754	mop_t::verify	Meaningless 'size' value for operand.
+50755	mop_t::verify	Constant strings must be ADDRSIZE.
+51586	mop_t::verify	Bad constant size (<= 0 or > 8).
+51587	mop_t::verify	Bad constant size (not power of 2).
+50756	mop_t::verify	Unknown operand size is forbidden (when VMOP_ADRUSED set).
+50757	mop_t::verify	Bad operand size (not valid size, ldbl, or tbyte).
+51275	mop_t::verify	Bad floating operand size.
+52064	mop_t::verify	Bad possibly floating operand size.
+52673	mop_t::verify	mop_v: Address does not fit the address space.
+50758	mop_t::verify	mop_n: Missing constant info.
+50759	mop_t::verify	mop_n: Bad definition address of a constant.
+50760	mop_t::verify	mop_n: Bad operand number of a constant.
+50761	mop_t::verify	mop_n: Illegal bits in constant value.
+50762	mop_t::verify	mop_S: Foreign stack variable (from another mba).
+50763	mop_t::verify	mop_S: Stack variables must have a positive offset.
+52679	mop_t::verify	mop_S: Stack variable offset overflow.
+50764	mop_t::verify	mop_r: Negative microregister number.
+50765	mop_t::verify	mop_r: Bit registers must have size=1.
+50766	mop_t::verify	mop_r: Bad register size.
+50767	mop_t::verify	mop_d: Missing sub-instruction.
+50768	mop_t::verify	mop_d: Sub-instruction size mismatch.
+50770	mop_t::verify	mop_b: Bad block number.
+51650	mop_t::verify	mop_b: Block number is forbidden for the operand.
+50771	mop_t::verify	mop_f: Missing list of arguments.
+50772	mop_t::verify	mop_f: Argument list is valid only as the 'd' operand.
+50773	mop_t::verify	mop_f: Argument list can be used only in a 'call' instruction.
+50774	mop_t::verify	mop_l: Missing reference to the microcode object.
+50775	mop_t::verify	mop_l: Reference to foreign microcode object.
+50776	mop_t::verify	mop_l: Wrong variable index.
+50777	mop_t::verify	mop_l: Reference past end of variable (with NOSIZE).
+50778	mop_t::verify	mop_l: Reference past end of variable.
+50779	mop_t::verify	mop_l: Reference before start of variable.
+51067	mop_t::verify	mop_a: Missing operand.
+52863	mop_t::verify	mop_a: Scattered operand consisting of a single stack part is invalid.
+50780	mop_t::verify	mop_a: Addresses of registers are allowed only in helper functions.
+50781	mop_t::verify	mop_a: Wrong size of an operand address.
+50782	mop_t::verify	mop_h: Wrong helper name.
+50784	mop_t::verify	mop_h: Helper can be used only in a 'call' instruction.
+50785	mop_t::verify	mop_str: Missing string constant.
+51651	mop_t::verify	mop_c: Unexpected list of cases.
+50786	mop_t::verify	mop_c: Missing list of cases.
+50787	mop_t::verify	mop_fn: Missing floating point constant.
+50788	mop_t::verify	mop_fn: Size of a floating point constant is too big.
+50789	mop_t::verify	mop_p: Missing info about a pair operand.
+50790	mop_t::verify	mop_p: Low and high operand pairs must be of the same size.
+50791	mop_t::verify	mop_p: Inconsistent size of a pair operand.
+50792	mop_t::verify	mop_p: Invalid low pair part.
+50793	mop_t::verify	mop_p: Invalid high pair part.
+52045	mop_t::verify	mop_p: Calculation order of pair parts may change result (dependency).
+51135	mop_t::verify	mop_sc: A scattered operand must have a scattered location.
+51136	mop_t::verify	mop_sc: Wrong part offset (parts out of order).
+51137	mop_t::verify	mop_sc: Wrong part offset (overlap/size issue).
+51138	mop_t::verify	mop_sc: Only simple reg/stack locations are permitted.
+50794	mop_t::verify	Wrong operand type (default case).
+50826	verify_segoff	Wrong offset size.
+50827	verify_segoff	Wrong segment size.
+52816	verify_segoff	Wrong operand size.
+52503	verify_segoff	Memory reference must have been resolved (at MMAT_GLBOPT3).
+50795	minsn_t::verify	Unknown instruction address.
+50863	minsn_t::verify	Wrong instruction address (outside range).
+50797	minsn_t::verify	Inconsistent instruction list pointers (next->prev).
+50798	minsn_t::verify	Inconsistent instruction list pointers (prev->next).
+50799	minsn_t::verify	A subinstruction may not be part of an instruction list.
+50800	minsn_t::verify	Opcode cannot be used in a subinstruction.
+50801	minsn_t::verify	Wrong FPINSN mark.
+52723	minsn_t::verify	IPROP_EXTSTX may be set only for m_ext.
+50802	minsn_t::verify	Instruction cannot be a subinstruction (e.g., goto, ret).
+50803	minsn_t::verify	Subinstructions must lack 'd', top level must have 'd'.
+50804	minsn_t::verify	Wrong instruction opcode.
+50805	minsn_t::verify	Subinstructions must not have prev or next fields.
+50806	minsn_t::verify	Operands forbidden (nop, ret).
+50807	minsn_t::verify	m_ext: Wrong operand (l).
+50808	minsn_t::verify	m_ext: Wrong operand (r).
+50809	minsn_t::verify	m_ext: Wrong operand (d).
+50811	minsn_t::verify	m_push: Wrong operands.
+50812	minsn_t::verify	m_goto: Wrong operands.
+50813	minsn_t::verify	m_ijmp: Wrong operands.
+50815	minsn_t::verify	Binary ops: Wrong operands (l or r empty).
+50817	minsn_t::verify	Unary ops: Wrong operands (l empty or r not empty).
+50818	minsn_t::verify	m_pop/und: Wrong operands.
+50819	minsn_t::verify	m_jcnd: Wrong operands.
+50820	minsn_t::verify	Jumps (jnz, etc): Wrong operands.
+50821	minsn_t::verify	m_jtbl: Wrong operands.
+50822	minsn_t::verify	m_call: Wrong operands (r not empty).
+50823	minsn_t::verify	m_call/icall: Wrong operands (l type).
+50824	minsn_t::verify	Call without an argument list.
+51264	minsn_t::verify	Indistinguishable call instructions (duplicate calls).
+50830	minsn_t::verify	Wrong operand sizes (r != d).
+50831	minsn_t::verify	Wrong operand sizes (l != r).
+50832	minsn_t::verify	Wrong operand sizes (l != r for setcc/cfadd).
+50833	minsn_t::verify	Wrong operand size (d != 1 for sets).
+50834	minsn_t::verify	Wrong operand sizes (r != 1 or d != 1 for cfshl/cfshr).
+50835	minsn_t::verify	Wrong operand size (r != 1 for shifts).
+52118	minsn_t::verify	Wrong shift value (shift count > size).
+50836	minsn_t::verify	Wrong operand sizes (l != d for mov/neg/etc).
+52338	minsn_t::verify	Wrong operand size for lnot (must be 1).
+50837	minsn_t::verify	Wrong operand sizes (xds/xdu: l >= d).
+50838	minsn_t::verify	Wrong operand sizes (low/high: l <= d).
+50839	minsn_t::verify	The destination cannot be another insn.
+51652	minsn_t::verify	Wrong instruction destination (a, n, fn, str, h).
+52123	minsn_t::verify	Only mov/f2f instructions may be assertions.
+50840	mblock_t::verify	Corrupted block list (nextb->prevb != this).
+50841	mblock_t::verify	Corrupted block list (prevb->nextb != this).
+50842	mblock_t::verify	Wrong end of the block list.
+50843	mblock_t::verify	Wrong beginning of the block list.
+50844	mblock_t::verify	Unknown bits in the block flags.
+50845	mblock_t::verify	Use-def lists must be ready if propagation is not requested.
+50846	mblock_t::verify	Must-use locations must be subset of may-use locations.
+50847	mblock_t::verify	Must-def locations must be subset of may-def locations.
+51814	mblock_t::verify	Entry/exit/extern blocks must be empty.
+50848	mblock_t::verify	Entry/exit/extern blocks: cannot define/use anything.
+50849	mblock_t::verify	Entry block: may not use anything.
+50850	mblock_t::verify	Exit/extern blocks: may not define anything.
+50851	mblock_t::verify	Wrong block serial number.
+50852	mblock_t::verify	Corrupted 'natural' block array.
+50853	mblock_t::verify	Wrong minbstkref.
+52729	mblock_t::verify	The main chunk cannot have a subframe.
+52730	mblock_t::verify	Wrong subframe index.
+52731	mblock_t::verify	Wrong local minstkref of a subframe.
+52732	mblock_t::verify	Too low subframe minstkref.
+51328	mblock_t::verify	Exit block with dirty use-def lists.
+51774	mblock_t::verify	Call block passes to noret function (should be BLT_0WAY).
+50854	mblock_t::verify	1-way call block must pass execution to the next block.
+51815	mblock_t::verify	Wrong block type.
+50855	mblock_t::verify	N-way blocks can be used only with jtbl instructions.
+50856	mblock_t::verify	Wrong size of a block successor set.
+50857	mblock_t::verify	Wrong block number in the successor set.
+50858	mblock_t::verify	Inconsistent predecessor set.
+50859	mblock_t::verify	jtbl without the case list.
+50860	mblock_t::verify	Wrong successor set.
+50861	mblock_t::verify	Inconsistent successor set (predecessor check).
+50862	mblock_t::verify	Duplicate predecessors.
+50864	mblock_t::verify	Opcode must be the last instruction in a block.
+50865	mblock_t::verify	Push/pop may be present only before converting them.
+50866	mblock_t::verify	Non-empty block without the tail instruction.
+50867	mblock_t::verify	Head must be the first instruction.
+50868	mblock_t::verify	Tail must be the last instruction.
+50869	mblock_t::verify	Wrong block boundaries.
+50870	mblock_t::verify	Block outside of function boundaries.
+50871	mblock_t::verify	Empty block: head instruction must not exist.
+50872	mblock_t::verify	Empty block: tail instruction must not exist.
+50873	mblock_t::verify	Wrong maybuse.
+50874	mblock_t::verify	Wrong maybdef.
+50875	mblock_t::verify	Wrong mustbuse.
+50876	mblock_t::verify	Wrong mustbdef.
+50877	mblock_t::verify	Wrong dnu.
+52724	mblock_t::verify	Block reads from a wrong stack location.
+52853	mblock_t::verify	Tail is null (assert failure).
+52733	mblock_t::verify	Block writes to a wrong stack location.
+50920	mblock_t::verify	Temporary registers cannot cross block boundaries.
+50906	mba_t::verify_args	Non-argvar in the argument list.
+50904	mba_t::verify_args	Overlapping arguments.
+51053	mba_t::verify_args	Incorrect argument locations for usercall.
+51871	mba_t::verify_args	Constructor without arguments (no 'this').
+51872	mba_t::verify_args	First argument of a constructor must be named 'this'.
+51873	mba_t::verify_args	First argument of a constructor must be a pointer.
+51887	mba_t::verify_args	First argument of a constructor must be marked as 'this'.
+51502	verify_lvar_names	Inconsistent lvar name cache (end mismatch).
+51503	verify_lvar_names	Inconsistent lvar name cache (end mismatch).
+51504	verify_lvar_names	Inconsistent lvar name cache (name mismatch).
+50891	mba_t::verify_lvars	Empty variable names (permitted only at final stage).
+50892	mba_t::verify_lvars	Lvar without a type.
+50893	mba_t::verify_lvars	Incorrect lvar type.
+50894	mba_t::verify_lvars	Wrong lvar definition address.
+50895	mba_t::verify_lvars	Wrong lvar definition block number.
+50896	mba_t::verify_lvars	Arguments must be defined in block #0.
+50897	mba_t::verify_lvars	An argument variable is not in the argument list.
+51888	mba_t::verify_lvars	'this' variable is not marked as argument.
+52036	mba_t::verify_lvars	Lvar is marked as argument and non-argument.
+51297	mba_t::verify_lvars	Wrong variable size.
+50898	mba_t::verify_lvars	Variable type and size mismatch.
+51926	mba_t::verify_lvars	Variable type and size mismatch (even with padding).
+51219	mba_t::verify_lvars	Wrong variable location.
+50899	mba_t::verify_lvars	Return value cannot have any stack part.
+50900	mba_t::verify_lvars	Return variable is not marked as such.
+50901	mba_t::verify_lvars	A variable is marked as retval but is not returned.
+50902	mba_t::verify_lvars	Two indistinguishable variables (same location and defea).
+50878	mba_t::verify	Inconsistent basic block numbering.
+50879	mba_t::verify	Overlapping basic blocks.
+50880	mba_t::verify	Inconsistent list of basic blocks.
+51685	mba_t::verify	Reserved mba_t::flags bit is set.
+50881	mba_t::verify	Reserved mba_t::flags2 bit is set.
+50882	mba_t::verify	Negative function frame sizes.
+52701	mba_t::verify	At least one subframe should exist.
+52702	mba_t::verify	The main frame always ends with 'stacksize'.
+52703	mba_t::verify	mba_t::minstkref mismatch.
+52704	mba_t::verify	The last subframe must be based at zero.
+52705	mba_t::verify	Subframes should follow each other in descending order.
+52706	mba_t::verify	Subframe minstkref undefined.
+50883	mba_t::verify	Wrong minargref.
+50884	mba_t::verify	Full stack size is less than lvar area size.
+50885	mba_t::verify	minstkref is higher than lvar area size.
+50886	mba_t::verify	Wrong lvar area size.
+50887	mba_t::verify	Wrong frame frsize.
+50888	mba_t::verify	Wrong frame frregs.
+51704	mba_t::verify	Wrong frame fpd.
+50889	mba_t::verify	Wrong frame retsize.
+52620	mba_t::verify	Empty snippet range.
+52666	mba_t::verify	Missing inlined ranges.
+52667	mba_t::verify	Unexpected inlined ranges.
+52098	mba_t::verify	Wrong start of the standard region GLBLOW.
+52099	mba_t::verify	Wrong start of the standard region LVARS.
+52100	mba_t::verify	Wrong size of the standard region LVARS.
+52101	mba_t::verify	Wrong start of the standard region RETADDR.
+52102	mba_t::verify	Wrong size of the standard region RETADDR.
+52103	mba_t::verify	Wrong start of the standard region SHADOW.
+52104	mba_t::verify	Wrong size of the standard region SHADOW.
+52108	mba_t::verify	Inconsistent offset of the argument area.
+52109	mba_t::verify	Inconsistent offset of the argument area (>).
+52105	mba_t::verify	Wrong start of the standard region ARGS.
+52106	mba_t::verify	Wrong size of the standard region ARGS.
+52112	mba_t::verify	Wrong full stack size.
+52107	mba_t::verify	Wrong start of the standard region GLBHIGH.
+50911	mba_t::verify	Wrong index of the return variable.
+50912	mba_t::verify	Wrong calling convention.
+50913	mba_t::verify	Incorrect function type retrieved from the idb.
+50914	mba_t::verify	Function entry is not marked as a function.
+50958	pattern_t::verify	Wrong block reference in a pattern.
+50959	pattern_t::verify	Wrong instruction reference in a pattern.
+51712	mba_t::verify_stkpnts	Wrong calculated sp value.
+51713	mba_t::verify_stkpnts	Wrong calculated sp value (order).
+51714	mba_t::verify_stkpnts	Wrong calculated sp value at the function entry point.
+Debug/Dump
+
+Code	Function	Condition / Meaning
+50581	mop_t::print	Illegal MOP type (default case in switch).
+52909	mba_print_helper_t	block_idx < 0.
+52910	mba_print_helper_t	block_idx >= mba->qty.
+52911	get_anchor_color_tag	Unknown anchor kind.
+52912	for_each_anchored_range	Anchor color tag mismatch.
+52913	for_each_anchored_range	Closing anchor tag mismatch.
+52914	for_each_anchored_range	Opening anchors stack not empty at end of range.
+No explicit INTERR macro but documented
+
+Code	Meaning
+50409	A 'nop' instruction is still present in the microcode at the ctree generation time.
+50340	Local variable allocation failed to reach the fixed point.

@@ -15,6 +15,7 @@ build:
 install: build
 	@mkdir -p $(INSTALL_DIR)
 	@cp $(IDA_SDK_PLUGIN_DIR)/$(PLUGIN_NAME) $(INSTALL_DIR)/
+	@codesign -s - -f $(INSTALL_DIR)/$(PLUGIN_NAME) 2>/dev/null || true
 	@echo "Installed $(PLUGIN_NAME) to $(INSTALL_DIR)"
 
 clean:

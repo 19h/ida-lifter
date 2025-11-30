@@ -375,7 +375,9 @@ merror_t handle_v_align(codegen_t &cdg) {
     return MERR_OK;
 }
 
-merror_t handle_vzeroupper_nop(codegen_t &) { return MERR_OK; }
+// vzeroupper is a microarchitectural optimization with no semantic effect
+// Let IDA handle it natively by returning MERR_INSN
+merror_t handle_vzeroupper_nop(codegen_t &) { return MERR_INSN; }
 
 merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
     int size = get_op_size(cdg.insn);

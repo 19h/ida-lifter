@@ -235,15 +235,15 @@ extern "C" void set_debug_logging(bool enabled) {
 static void MicroAvx_init() {
     if (g_avx) return;
 
-    // Enable debug logging and printing by default for troubleshooting
-    debug_logging_enabled = true;
-    ::set_debug_printing(true);
+    // Disable debug logging and printing by default to avoid potential hangs
+    debug_logging_enabled = false;
+    ::set_debug_printing(false);
 
     msg("[AVXLifter] Initializing AVXLifter component\n");
 
-    // Install debug callback for printing disassembly/microcode
-    g_callback_active = true;
-    install_hexrays_callback(hexrays_debug_callback, nullptr);
+    // Skip debug callback installation - it might cause issues
+    // g_callback_active = true;
+    // install_hexrays_callback(hexrays_debug_callback, nullptr);
 
     g_avx = new AVXLifter();
     install_microcode_filter(g_avx, true);

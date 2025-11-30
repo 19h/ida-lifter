@@ -70,7 +70,8 @@ bool is_conversion_insn(uint16 it) {
 }
 
 bool is_move_insn(uint16 it) {
-    return it == NN_vmovd || it == NN_vmovq || it == NN_vmovss || it == NN_vmovsd ||
+    // Note: vmovss/vmovsd scalar moves are excluded to let IDA handle them natively
+    return it == NN_vmovd || it == NN_vmovq ||
            it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu ||
            it == NN_vmovapd || it == NN_vmovupd ||
            // AVX-512 move variants
@@ -154,14 +155,14 @@ bool is_fma_insn(uint16 it) {
 }
 
 bool is_math_insn(uint16 it) {
-    return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
-           it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd ||
-           it == NN_vaddps || it == NN_vsubps || it == NN_vmulps || it == NN_vdivps ||
+    // Note: Scalar operations (vaddss/sd, vsubss/sd, vmulss/sd, vdivss/sd) are excluded
+    // to let IDA handle them natively, avoiding type/verification issues
+    return it == NN_vaddps || it == NN_vsubps || it == NN_vmulps || it == NN_vdivps ||
            it == NN_vaddpd || it == NN_vsubpd || it == NN_vmulpd || it == NN_vdivpd ||
            it == NN_vpaddb || it == NN_vpsubb || it == NN_vpaddw || it == NN_vpsubw ||
            it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
            it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
-           is_scalar_minmax(it) || is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
+           is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
            is_avg_insn(it) || is_abs_insn(it) || is_sign_insn(it) ||
            is_shift_insn(it) || is_var_shift_insn(it) ||
            is_shuffle_insn(it) || is_perm_insn(it) || is_align_insn(it) ||
@@ -173,10 +174,11 @@ bool is_broadcast_insn(uint16 it) {
 }
 
 bool is_misc_insn(uint16 it) {
+    // Note: vzeroupper is excluded - it's a microarchitectural hint with no semantic effect
+    // Let IDA handle it natively
     return it == NN_vsqrtss || it == NN_vsqrtps || it == NN_vsqrtpd ||
            it == NN_vshufps || it == NN_vshufpd ||
-           it == NN_vpermpd ||
-           it == NN_vzeroupper;
+           it == NN_vpermpd;
 }
 
 bool is_blend_insn(uint16 it) {
