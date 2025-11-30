@@ -115,41 +115,39 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
         mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
 
         if (is_vector_reg(cdg.insn.Op2)) {
-            // Register-to-register move: use loadu intrinsic with reg as "source"
+            // Register-to-register move: use native m_mov microcode
+            // This avoids spurious _mm_loadu_ps() calls in the output
             mreg_t src = reg2mreg(cdg.insn.Op2.reg);
 
-            qstring iname;
-            if (is_int) {
-                // For integer moves, just use a move intrinsic
-                iname.cat_sprnt("_mm%s_loadu_si%d", get_size_prefix(size), size * 8);
-            } else {
-                iname.cat_sprnt("_mm%s_loadu_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+            mop_t src_mop(src, size);
+            mop_t dst_mop(dst, size);
+
+            // For sizes > 8, we need to mark operands as UDT
+            if (size > 8) {
+                src_mop.set_udt();
+                dst_mop.set_udt();
             }
 
-            AVXIntrinsic icall(&cdg, iname.c_str());
-            tinfo_t ti = get_type_robust(size, is_int, is_double);
-            icall.add_argument_reg(src, ti);
-            icall.set_return_reg(dst, ti);
-            icall.emit();
+            mop_t dummy;
+            cdg.emit(m_mov, &src_mop, &dummy, &dst_mop);
         } else {
-            // Memory-to-register: load from memory
+            // Memory-to-register: use native load via load_operand + m_mov
             QASSERT(0xA0310, is_mem_op(cdg.insn.Op2));
 
-            // Load the value from memory (not the address)
+            // load_operand returns a kreg with the loaded value
             mreg_t loaded = cdg.load_operand(1);
 
-            qstring iname;
-            if (is_int) {
-                iname.cat_sprnt("_mm%s_loadu_si%d", get_size_prefix(size), size * 8);
-            } else {
-                iname.cat_sprnt("_mm%s_loadu_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+            // Now move from the loaded kreg to the destination register
+            mop_t src_mop(loaded, size);
+            mop_t dst_mop(dst, size);
+
+            if (size > 8) {
+                src_mop.set_udt();
+                dst_mop.set_udt();
             }
 
-            AVXIntrinsic icall(&cdg, iname.c_str());
-            tinfo_t ti = get_type_robust(size, is_int, is_double);
-            icall.add_argument_reg(loaded, ti);
-            icall.set_return_reg(dst, ti);
-            icall.emit();
+            mop_t dummy;
+            cdg.emit(m_mov, &src_mop, &dummy, &dst_mop);
         }
 
         if (size == XMM_SIZE) clear_upper(cdg, dst);

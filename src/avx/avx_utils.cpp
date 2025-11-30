@@ -90,6 +90,19 @@ bool is_scalar_minmax(uint16 it) {
     return it == NN_vminss || it == NN_vminsd || it == NN_vmaxss || it == NN_vmaxsd;
 }
 
+bool is_scalar_math(uint16 it) {
+    return it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss ||
+           it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd;
+}
+
+bool is_scalar_move(uint16 it) {
+    return it == NN_vmovss || it == NN_vmovsd;
+}
+
+bool is_vzeroupper(uint16 it) {
+    return it == NN_vzeroupper;
+}
+
 bool is_packed_minmax_fp(uint16 it) {
     return it == NN_vminps || it == NN_vminpd || it == NN_vmaxps || it == NN_vmaxpd;
 }
@@ -174,11 +187,24 @@ bool is_broadcast_insn(uint16 it) {
 }
 
 bool is_misc_insn(uint16 it) {
-    // Note: vzeroupper is excluded - it's a microarchitectural hint with no semantic effect
-    // Let IDA handle it natively
     return it == NN_vsqrtss || it == NN_vsqrtps || it == NN_vsqrtpd ||
            it == NN_vshufps || it == NN_vshufpd ||
            it == NN_vpermpd;
+}
+
+bool is_extract_insert_insn(uint16 it) {
+    return it == NN_vextractf128 || it == NN_vinsertf128 ||
+           it == NN_vextracti128 || it == NN_vinserti128;
+}
+
+bool is_movdup_insn(uint16 it) {
+    return it == NN_vmovshdup || it == NN_vmovsldup ||
+           it == NN_vmovddup;
+}
+
+bool is_unpack_insn(uint16 it) {
+    return it == NN_vunpckhps || it == NN_vunpcklps ||
+           it == NN_vunpckhpd || it == NN_vunpcklpd;
 }
 
 bool is_blend_insn(uint16 it) {

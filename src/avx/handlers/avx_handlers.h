@@ -98,4 +98,19 @@ merror_t handle_vblend_int(codegen_t &cdg);
 
 merror_t handle_vmaskmov_ps_pd(codegen_t &cdg);
 
+// Extract/Insert
+merror_t handle_vextractf128(codegen_t &cdg);
+
+merror_t handle_vinsertf128(codegen_t &cdg);
+
+// Move duplicates
+merror_t handle_vmovshdup(codegen_t &cdg);
+
+merror_t handle_vmovsldup(codegen_t &cdg);
+
+merror_t handle_vmovddup(codegen_t &cdg);
+
+// Unpack
+merror_t handle_vunpck(codegen_t &cdg);
+
 #endif // IDA_SDK_VERSION >= 750

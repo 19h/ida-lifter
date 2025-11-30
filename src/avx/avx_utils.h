@@ -69,6 +69,12 @@ bool is_bitwise_insn(uint16 it);
 
 bool is_scalar_minmax(uint16 it);
 
+bool is_scalar_math(uint16 it);
+
+bool is_scalar_move(uint16 it);
+
+bool is_vzeroupper(uint16 it);
+
 bool is_packed_minmax_fp(uint16 it);
 
 bool is_packed_minmax_int(uint16 it);
@@ -116,6 +122,12 @@ bool is_dot_product(uint16 it);
 bool is_approx_insn(uint16 it);
 
 bool is_round_insn(uint16 it);
+
+bool is_extract_insert_insn(uint16 it);
+
+bool is_movdup_insn(uint16 it);
+
+bool is_unpack_insn(uint16 it);
 
 // Predicate extraction
 uint8 get_cmp_predicate(uint16 it);

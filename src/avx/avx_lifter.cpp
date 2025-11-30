@@ -33,13 +33,15 @@ struct ida_local AVXLifter : microcode_filter_t {
         }
 
         bool m = is_compare_insn(it) || is_extract_insn(it) || is_conversion_insn(it) ||
-                 is_move_insn(it) || is_bitwise_insn(it) || is_math_insn(it) ||
+                 is_move_insn(it) || is_scalar_move(it) || is_bitwise_insn(it) ||
+                 is_math_insn(it) || is_scalar_math(it) || is_scalar_minmax(it) ||
                  is_broadcast_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
                  is_packed_int_compare_insn(it) ||
                  is_maskmov_insn(it) || is_misc_insn(it) ||
                  is_horizontal_math(it) || is_dot_product(it) ||
                  is_approx_insn(it) || is_round_insn(it) ||
-                 is_gather_insn(it) || is_fma_insn(it);
+                 is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
+                 is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it);
 
         if (m) {
             DEBUG_LOG("%a: MATCH itype=%u", ea, it);
@@ -157,6 +159,18 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vshufpd) return handle_vshufpd(cdg);
         if (it == NN_vpermpd) return handle_vpermpd(cdg);
         if (it == NN_vzeroupper) return handle_vzeroupper_nop(cdg);
+
+        // extract/insert
+        if (it == NN_vextractf128 || it == NN_vextracti128) return handle_vextractf128(cdg);
+        if (it == NN_vinsertf128 || it == NN_vinserti128) return handle_vinsertf128(cdg);
+
+        // movdup
+        if (it == NN_vmovshdup) return handle_vmovshdup(cdg);
+        if (it == NN_vmovsldup) return handle_vmovsldup(cdg);
+        if (it == NN_vmovddup) return handle_vmovddup(cdg);
+
+        // unpack
+        if (is_unpack_insn(it)) return handle_vunpck(cdg);
 
         return MERR_INSN;
     }

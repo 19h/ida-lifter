@@ -376,8 +376,13 @@ merror_t handle_v_align(codegen_t &cdg) {
 }
 
 // vzeroupper is a microarchitectural optimization with no semantic effect
-// Let IDA handle it natively by returning MERR_INSN
-merror_t handle_vzeroupper_nop(codegen_t &) { return MERR_INSN; }
+// Emit a NOP instruction so it doesn't appear as __asm block
+merror_t handle_vzeroupper_nop(codegen_t &cdg) {
+    // Emit a m_nop to consume the instruction without any visible effect
+    // m_nop requires proper arguments: emit(opcode, width, l, r, d, offsize)
+    cdg.emit(m_nop, 0, 0, 0, 0, 0);
+    return MERR_OK;
+}
 
 merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
     int size = get_op_size(cdg.insn);
@@ -672,6 +677,162 @@ merror_t handle_vblend_int(codegen_t &cdg) {
     }
 
     if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vextractf128(codegen_t &cdg) {
+    // vextractf128 xmm1/m128, ymm2, imm8
+    // Extracts 128 bits from ymm2 based on imm8
+    QASSERT(0xA0900, is_ymm_reg(cdg.insn.Op2));
+    QASSERT(0xA0901, cdg.insn.Op3.type == o_imm);
+
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+    uint64 imm = cdg.insn.Op3.value & 1;
+
+    qstring iname;
+    iname.cat_sprnt("_mm256_extractf128_ps");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt_src = get_type_robust(YMM_SIZE, false, false);
+    tinfo_t vt_dst = get_type_robust(XMM_SIZE, false, false);
+
+    icall.add_argument_reg(src, vt_src);
+    icall.add_argument_imm(imm, BT_INT32);
+
+    if (is_xmm_reg(cdg.insn.Op1)) {
+        mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(dst, vt_dst);
+        icall.emit();
+        clear_upper(cdg, dst);
+    } else {
+        // Memory destination - store the result
+        QASSERT(0xA0902, is_mem_op(cdg.insn.Op1));
+        mreg_t tmp = cdg.mba->alloc_kreg(XMM_SIZE);
+        icall.set_return_reg(tmp, vt_dst);
+        icall.emit();
+        store_operand_hack(cdg, 0, mop_t(tmp, XMM_SIZE));
+        cdg.mba->free_kreg(tmp, XMM_SIZE);
+    }
+
+    return MERR_OK;
+}
+
+merror_t handle_vinsertf128(codegen_t &cdg) {
+    // vinsertf128 ymm1, ymm2, xmm3/m128, imm8
+    // Inserts 128 bits into ymm
+    QASSERT(0xA0910, is_ymm_reg(cdg.insn.Op1) && is_ymm_reg(cdg.insn.Op2));
+    QASSERT(0xA0911, cdg.insn.Op4.type == o_imm);
+
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t src1 = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader src2(cdg, 2, cdg.insn.Op3);
+    uint64 imm = cdg.insn.Op4.value & 1;
+
+    AVXIntrinsic icall(&cdg, "_mm256_insertf128_ps");
+    tinfo_t vt_ymm = get_type_robust(YMM_SIZE, false, false);
+    tinfo_t vt_xmm = get_type_robust(XMM_SIZE, false, false);
+
+    icall.add_argument_reg(src1, vt_ymm);
+    icall.add_argument_reg(src2, vt_xmm);
+    icall.add_argument_imm(imm, BT_INT32);
+    icall.set_return_reg(dst, vt_ymm);
+    icall.emit();
+
+    return MERR_OK;
+}
+
+merror_t handle_vmovshdup(codegen_t &cdg) {
+    // vmovshdup xmm1, xmm2/m128 or ymm1, ymm2/m256
+    // Replicate odd-indexed single-precision floating-point values
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_movehdup_ps", size == YMM_SIZE ? "256" : "");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt = get_type_robust(size, false, false);
+
+    icall.add_argument_reg(src, vt);
+    icall.set_return_reg(dst, vt);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
+    return MERR_OK;
+}
+
+merror_t handle_vmovsldup(codegen_t &cdg) {
+    // vmovsldup xmm1, xmm2/m128 or ymm1, ymm2/m256
+    // Replicate even-indexed single-precision floating-point values
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_moveldup_ps", size == YMM_SIZE ? "256" : "");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt = get_type_robust(size, false, false);
+
+    icall.add_argument_reg(src, vt);
+    icall.set_return_reg(dst, vt);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
+    return MERR_OK;
+}
+
+merror_t handle_vmovddup(codegen_t &cdg) {
+    // vmovddup xmm1, xmm2/m64 or ymm1, ymm2/m256
+    // Duplicate the low double-precision element
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_movedup_pd", size == YMM_SIZE ? "256" : "");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt = get_type_robust(size, false, true); // double type
+
+    icall.add_argument_reg(src, vt);
+    icall.set_return_reg(dst, vt);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
+    return MERR_OK;
+}
+
+merror_t handle_vunpck(codegen_t &cdg) {
+    // vunpckhps/vunpcklps/vunpckhpd/vunpcklpd
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t src1 = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader src2(cdg, 2, cdg.insn.Op3);
+
+    const char *op = nullptr;
+    bool is_double = false;
+    switch (cdg.insn.itype) {
+        case NN_vunpckhps: op = "unpackhi"; break;
+        case NN_vunpcklps: op = "unpacklo"; break;
+        case NN_vunpckhpd: op = "unpackhi"; is_double = true; break;
+        case NN_vunpcklpd: op = "unpacklo"; is_double = true; break;
+        default: return MERR_INSN;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, is_double ? "pd" : "ps");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt = get_type_robust(size, false, is_double);
+
+    icall.add_argument_reg(src1, vt);
+    icall.add_argument_reg(src2, vt);
+    icall.set_return_reg(dst, vt);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
     return MERR_OK;
 }
 
