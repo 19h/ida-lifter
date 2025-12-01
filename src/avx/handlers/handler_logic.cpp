@@ -976,22 +976,426 @@ merror_t handle_vpack(codegen_t &cdg) {
 
 // vptest - logical compare
 // vptest ymm1, ymm2/m256
+// Note: vptest sets flags (ZF, CF), not a register destination
+// This is difficult to lift properly since IDA expects register destinations
+// For now, emit a NOP and let IDA handle the flag-setting behavior natively
 merror_t handle_vptest(codegen_t &cdg) {
+    // vptest is a flag-setting instruction with no register destination
+    // We cannot properly lift this to an intrinsic since intrinsics return values
+    // Fall back to IDA's native handling
+    return MERR_INSN;
+}
+
+// vfmaddsub/vfmsubadd - FMA with alternating add/sub
+// vfmaddsub132ps/pd, vfmaddsub213ps/pd, vfmaddsub231ps/pd
+// vfmsubadd132ps/pd, vfmsubadd213ps/pd, vfmsubadd231ps/pd
+merror_t handle_vfmaddsub(codegen_t &cdg) {
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
-    mreg_t l = reg2mreg(cdg.insn.Op1.reg);
-    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t op1 = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t op2 = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader op3_in(cdg, 2, cdg.insn.Op3);
+
+    const char *op = nullptr;
+    const char *type = nullptr;
+    int order = 0;
+    bool is_double = false;
+
+    uint16 it = cdg.insn.itype;
+
+    // vfmaddsub: odd elements are added, even elements are subtracted
+    // vfmsubadd: odd elements are subtracted, even elements are added
+    if (it >= NN_vfmaddsub132ps && it <= NN_vfmaddsub231pd) {
+        op = "fmaddsub";
+        int base = it - NN_vfmaddsub132ps;
+        order = (base / 2) == 0 ? 132 : ((base / 2) == 1 ? 213 : 231);
+        is_double = (base % 2) == 1;
+        type = is_double ? "pd" : "ps";
+    } else if (it >= NN_vfmsubadd132ps && it <= NN_vfmsubadd231pd) {
+        op = "fmsubadd";
+        int base = it - NN_vfmsubadd132ps;
+        order = (base / 2) == 0 ? 132 : ((base / 2) == 1 ? 213 : 231);
+        is_double = (base % 2) == 1;
+        type = is_double ? "pd" : "ps";
+    } else {
+        return MERR_INSN;
+    }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_testz_si%s", size == YMM_SIZE ? "256" : "", size == YMM_SIZE ? "256" : "128");
+    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, type);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, false, is_double);
+
+    mreg_t op3 = op3_in;
+
+    // Argument ordering (same as regular FMA)
+    mreg_t arg1, arg2, arg3;
+    if (order == 132) {
+        arg1 = op1; arg2 = op3; arg3 = op2;
+    } else if (order == 213) {
+        arg1 = op2; arg2 = op1; arg3 = op3;
+    } else {
+        arg1 = op2; arg2 = op3; arg3 = op1;
+    }
+
+    icall.add_argument_reg(arg1, ti);
+    icall.add_argument_reg(arg2, ti);
+    icall.add_argument_reg(arg3, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vmovmskps/vmovmskpd/vpmovmskb - move sign bits to GPR
+// vmovmskps r32, xmm/ymm
+merror_t handle_vmovmsk(codegen_t &cdg) {
+    // Destination is a GPR, source is a vector register
+    int size = is_xmm_reg(cdg.insn.Op2) ? XMM_SIZE : YMM_SIZE;
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname;
+    bool is_int = (cdg.insn.itype == NN_vpmovmskb);
+    bool is_double = (cdg.insn.itype == NN_vmovmskpd);
+
+    if (is_int) {
+        iname.cat_sprnt("_mm%s_movemask_epi8", size == YMM_SIZE ? "256" : "");
+    } else {
+        iname.cat_sprnt("_mm%s_movemask_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+    }
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, is_int, is_double);
+
+    icall.add_argument_reg(src, ti);
+    icall.set_return_reg_basic(dst, BT_INT32);
+    icall.emit();
+
+    return MERR_OK;
+}
+
+// vmovntps/vmovntpd/vmovntdq - non-temporal store
+// vmovntps m128/m256, xmm/ymm
+merror_t handle_vmovnt(codegen_t &cdg) {
+    // Non-temporal stores: memory destination, register source
+    QASSERT(0xA0A00, is_mem_op(cdg.insn.Op1));
+
+    int size = is_xmm_reg(cdg.insn.Op2) ? XMM_SIZE : YMM_SIZE;
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+
+    bool is_int = (cdg.insn.itype == NN_vmovntdq);
+    bool is_double = (cdg.insn.itype == NN_vmovntpd);
+
+    qstring iname;
+    if (is_int) {
+        iname.cat_sprnt("_mm%s_stream_si%s", size == YMM_SIZE ? "256" : "", size == YMM_SIZE ? "256" : "128");
+    } else {
+        iname.cat_sprnt("_mm%s_stream_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+    }
+
+    // For non-temporal stores, we emit as a regular store
+    // The intrinsic is a hint; for decompilation purposes, treat as store
+    mop_t src_mop(src, size);
+    store_operand_hack(cdg, 0, src_mop);
+
+    return MERR_OK;
+}
+
+// vpbroadcastb/vpbroadcastw - broadcast byte/word from XMM or memory
+// vpbroadcastb ymm1, xmm2/m8
+// vpbroadcastw ymm1, xmm2/m16
+merror_t handle_vpbroadcast_b_w(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    bool is_word = (cdg.insn.itype == NN_vpbroadcastw);
+    int elem_size = is_word ? 2 : 1;
+
+    // Source can be XMM register or memory
+    mreg_t src;
+    mreg_t t_mem = mr_none;
+    if (is_mem_op(cdg.insn.Op2)) {
+        AvxOpLoader src_in(cdg, 1, cdg.insn.Op2);
+        // Zero-extend to XMM for intrinsic argument
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t s(src_in.reg, elem_size);
+        mop_t dst_op(t_mem, XMM_SIZE);
+        mop_t empty;
+        cdg.emit(m_xdu, &s, &empty, &dst_op);
+        src = t_mem;
+    } else {
+        src = reg2mreg(cdg.insn.Op2.reg);
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_broadcast%s_epi%d", size == YMM_SIZE ? "256" : "", is_word ? "w" : "b", is_word ? 16 : 8);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti_src = get_type_robust(XMM_SIZE, true, false);
+    tinfo_t ti_dst = get_type_robust(size, true, false);
+
+    icall.add_argument_reg(src, ti_src);
+    icall.set_return_reg(d, ti_dst);
+    icall.emit();
+
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpinsrb/vpinsrw/vpinsrd/vpinsrq - insert into vector
+// vpinsrd xmm1, xmm2, r32/m32, imm8
+merror_t handle_vpinsert(codegen_t &cdg) {
+    int size = XMM_SIZE;  // Always XMM for insert instructions
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t s = reg2mreg(cdg.insn.Op2.reg);
+
+    int elem_size;
+    const char *suffix;
+    switch (cdg.insn.itype) {
+        case NN_vpinsrb: elem_size = 1; suffix = "epi8"; break;
+        case NN_vpinsrw: elem_size = 2; suffix = "epi16"; break;
+        case NN_vpinsrd: elem_size = 4; suffix = "epi32"; break;
+        case NN_vpinsrq: elem_size = 8; suffix = "epi64"; break;
+        default: return MERR_INSN;
+    }
+
+    // Op3 is GPR or memory, Op4 is immediate
+    QASSERT(0xA0A10, cdg.insn.Op4.type == o_imm);
+    uint64 imm = cdg.insn.Op4.value;
+
+    mreg_t val;
+    mreg_t t_mem = mr_none;
+    if (is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader val_in(cdg, 2, cdg.insn.Op3);
+        val = val_in.reg;
+    } else {
+        val = reg2mreg(cdg.insn.Op3.reg);
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm_insert_%s", suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    icall.add_argument_reg(s, ti);
+    icall.add_argument_reg(val, elem_size == 8 ? BT_INT64 : BT_INT32);
+    icall.add_argument_imm(imm, BT_INT32);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpmovsxbw/bd/bq/wd/wq/dq - sign extend packed integers
+// Source sizes vary based on instruction:
+//   vpmovsxbw xmm/ymm: source is 64/128 bits (half of dest)
+//   vpmovsxbd xmm/ymm: source is 32/64 bits (quarter of dest)
+//   vpmovsxbq xmm/ymm: source is 16/32 bits (eighth of dest)
+//   vpmovsxwd xmm/ymm: source is 64/128 bits (half of dest)
+//   vpmovsxwq xmm/ymm: source is 32/64 bits (quarter of dest)
+//   vpmovsxdq xmm/ymm: source is 64/128 bits (half of dest)
+merror_t handle_vpmovsx(codegen_t &cdg) {
+    DEBUG_LOG("handle_vpmovsx: Op1.dtype=%d Op2.dtype=%d Op2.type=%d itype=%d",
+              cdg.insn.Op1.dtype, cdg.insn.Op2.dtype, cdg.insn.Op2.type, cdg.insn.itype);
+
+    int dst_size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    DEBUG_LOG("handle_vpmovsx: dst_size=%d", dst_size);
+
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    DEBUG_LOG("handle_vpmovsx: d=%d", d);
+
+    // Determine source size based on instruction variant
+    // The source contains packed elements that will be sign-extended
+    int src_size;
+    const char *suffix;
+    switch (cdg.insn.itype) {
+        case NN_vpmovsxbw: // byte -> word: source is half of dest
+            suffix = "epi8_epi16";
+            src_size = dst_size / 2;
+            break;
+        case NN_vpmovsxbd: // byte -> dword: source is quarter of dest
+            suffix = "epi8_epi32";
+            src_size = dst_size / 4;
+            break;
+        case NN_vpmovsxbq: // byte -> qword: source is eighth of dest
+            suffix = "epi8_epi64";
+            src_size = dst_size / 8;
+            break;
+        case NN_vpmovsxwd: // word -> dword: source is half of dest
+            suffix = "epi16_epi32";
+            src_size = dst_size / 2;
+            break;
+        case NN_vpmovsxwq: // word -> qword: source is quarter of dest
+            suffix = "epi16_epi64";
+            src_size = dst_size / 4;
+            break;
+        case NN_vpmovsxdq: // dword -> qword: source is half of dest
+            suffix = "epi32_epi64";
+            src_size = dst_size / 2;
+            break;
+        default: return MERR_INSN;
+    }
+    DEBUG_LOG("handle_vpmovsx: src_size=%d suffix=%s", src_size, suffix);
+
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+    DEBUG_LOG("handle_vpmovsx: src.reg=%d src.size=%d is_mem=%d", src.reg, src.size, is_mem_op(cdg.insn.Op2));
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_cvt%s", dst_size == YMM_SIZE ? "256" : "", suffix);
+    DEBUG_LOG("handle_vpmovsx: intrinsic=%s", iname.c_str());
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    // For the source type, use the actual size that was loaded (for memory ops)
+    // or XMM_SIZE for register operands (Intel intrinsics take __m128i)
+    int actual_src_size = src.size > 0 ? src.size : XMM_SIZE;
+    tinfo_t ti_src = get_type_robust(actual_src_size, true, false);
+    tinfo_t ti_dst = get_type_robust(dst_size, true, false);
+    DEBUG_LOG("handle_vpmovsx: actual_src_size=%d ti_src.size=%d ti_dst.size=%d",
+              actual_src_size, (int)ti_src.get_size(), (int)ti_dst.get_size());
+
+    icall.add_argument_reg(src, ti_src);
+    DEBUG_LOG("handle_vpmovsx: added argument");
+    icall.set_return_reg(d, ti_dst);
+    DEBUG_LOG("handle_vpmovsx: set return reg");
+    icall.emit();
+    DEBUG_LOG("handle_vpmovsx: emitted, returning MERR_OK");
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpmovzxbw/bd/bq/wd/wq/dq - zero extend packed integers
+merror_t handle_vpmovzx(codegen_t &cdg) {
+    int dst_size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    const char *suffix;
+    switch (cdg.insn.itype) {
+        case NN_vpmovzxbw: suffix = "epu8_epi16"; break;
+        case NN_vpmovzxbd: suffix = "epu8_epi32"; break;
+        case NN_vpmovzxbq: suffix = "epu8_epi64"; break;
+        case NN_vpmovzxwd: suffix = "epu16_epi32"; break;
+        case NN_vpmovzxwq: suffix = "epu16_epi64"; break;
+        case NN_vpmovzxdq: suffix = "epu32_epi64"; break;
+        default: return MERR_INSN;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_cvt%s", dst_size == YMM_SIZE ? "256" : "", suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    // Use actual loaded size for memory operands, XMM_SIZE for registers
+    int actual_src_size = src.size > 0 ? src.size : XMM_SIZE;
+    tinfo_t ti_src = get_type_robust(actual_src_size, true, false);
+    tinfo_t ti_dst = get_type_robust(dst_size, true, false);
+
+    icall.add_argument_reg(src, ti_src);
+    icall.set_return_reg(d, ti_dst);
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpslldq/vpsrldq - byte shift
+// vpslldq xmm1, xmm2, imm8
+merror_t handle_vpslldq_vpsrldq(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t s = reg2mreg(cdg.insn.Op2.reg);
+
+    QASSERT(0xA0A20, cdg.insn.Op3.type == o_imm);
+    uint64 imm = cdg.insn.Op3.value;
+
+    bool is_left = (cdg.insn.itype == NN_vpslldq);
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%slli_si%s", size == YMM_SIZE ? "256" : "", is_left ? "s" : "sr", size == YMM_SIZE ? "256" : "128");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    icall.add_argument_reg(s, ti);
+    icall.add_argument_imm(imm, BT_INT32);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpunpckhbw/vpunpcklbw/etc - integer unpack
+merror_t handle_vpunpck(codegen_t &cdg) {
+    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+
+    const char *op;
+    const char *suffix;
+    switch (cdg.insn.itype) {
+        case NN_vpunpckhbw: op = "unpackhi"; suffix = "epi8"; break;
+        case NN_vpunpcklbw: op = "unpacklo"; suffix = "epi8"; break;
+        case NN_vpunpckhwd: op = "unpackhi"; suffix = "epi16"; break;
+        case NN_vpunpcklwd: op = "unpacklo"; suffix = "epi16"; break;
+        case NN_vpunpckhdq: op = "unpackhi"; suffix = "epi32"; break;
+        case NN_vpunpckldq: op = "unpacklo"; suffix = "epi32"; break;
+        case NN_vpunpckhqdq: op = "unpackhi"; suffix = "epi64"; break;
+        case NN_vpunpcklqdq: op = "unpacklo"; suffix = "epi64"; break;
+        default: return MERR_INSN;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, true, false);
 
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
-    // vptest sets flags, return type is int
-    icall.set_return_reg_basic(mr_cf, BT_INT32);
+    icall.set_return_reg(d, ti);
     icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vextractps - extract single float to GPR or memory
+// vextractps r32/m32, xmm1, imm8
+merror_t handle_vextractps(codegen_t &cdg) {
+    // Source is XMM, destination is GPR or memory
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+
+    QASSERT(0xA0A30, cdg.insn.Op3.type == o_imm);
+    uint64 imm = cdg.insn.Op3.value & 0x3;  // Only low 2 bits matter
+
+    // _mm_extract_ps returns int (bit representation of float)
+    AVXIntrinsic icall(&cdg, "_mm_extract_ps");
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+
+    icall.add_argument_reg(src, ti);
+    icall.add_argument_imm(imm, BT_INT32);
+
+    if (is_mem_op(cdg.insn.Op1)) {
+        // Memory destination - extract to temp then store
+        mreg_t tmp = cdg.mba->alloc_kreg(4);
+        icall.set_return_reg_basic(tmp, BT_INT32);
+        icall.emit();
+        mop_t src_mop(tmp, 4);
+        store_operand_hack(cdg, 0, src_mop);
+        cdg.mba->free_kreg(tmp, 4);
+    } else {
+        // GPR destination
+        mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg_basic(dst, BT_INT32);
+        icall.emit();
+    }
 
     return MERR_OK;
 }

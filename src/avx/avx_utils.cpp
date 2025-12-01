@@ -289,6 +289,52 @@ bool is_ptest_insn(uint16 it) {
     return it == NN_vptest;
 }
 
+bool is_fmaddsub_insn(uint16 it) {
+    return (it >= NN_vfmaddsub132ps && it <= NN_vfmaddsub231pd) ||
+           (it >= NN_vfmsubadd132ps && it <= NN_vfmsubadd231pd);
+}
+
+bool is_movmsk_insn(uint16 it) {
+    return it == NN_vmovmskps || it == NN_vmovmskpd || it == NN_vpmovmskb;
+}
+
+bool is_movnt_insn(uint16 it) {
+    return it == NN_vmovntps || it == NN_vmovntpd || it == NN_vmovntdq;
+}
+
+bool is_vpbroadcast_b_w(uint16 it) {
+    return it == NN_vpbroadcastb || it == NN_vpbroadcastw;
+}
+
+bool is_pinsert_insn(uint16 it) {
+    return it == NN_vpinsrb || it == NN_vpinsrw || it == NN_vpinsrd || it == NN_vpinsrq;
+}
+
+bool is_pmovsx_insn(uint16 it) {
+    return it == NN_vpmovsxbw || it == NN_vpmovsxbd || it == NN_vpmovsxbq ||
+           it == NN_vpmovsxwd || it == NN_vpmovsxwq || it == NN_vpmovsxdq;
+}
+
+bool is_pmovzx_insn(uint16 it) {
+    return it == NN_vpmovzxbw || it == NN_vpmovzxbd || it == NN_vpmovzxbq ||
+           it == NN_vpmovzxwd || it == NN_vpmovzxwq || it == NN_vpmovzxdq;
+}
+
+bool is_byte_shift_insn(uint16 it) {
+    return it == NN_vpslldq || it == NN_vpsrldq;
+}
+
+bool is_punpck_insn(uint16 it) {
+    return it == NN_vpunpckhbw || it == NN_vpunpcklbw ||
+           it == NN_vpunpckhwd || it == NN_vpunpcklwd ||
+           it == NN_vpunpckhdq || it == NN_vpunpckldq ||
+           it == NN_vpunpckhqdq || it == NN_vpunpcklqdq;
+}
+
+bool is_extractps_insn(uint16 it) {
+    return it == NN_vextractps;
+}
+
 qstring make_masked_intrinsic_name(const char *base_name, const MaskInfo &mask_info) {
     if (!mask_info.has_mask) {
         return qstring(base_name);

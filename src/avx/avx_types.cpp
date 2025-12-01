@@ -10,7 +10,7 @@
 #include <typeinf.hpp>
 #include "../common/warn_on.h"
 
-bool debug_logging_enabled = false;
+bool debug_logging_enabled = true;
 
 /*
 Resolves or synthesizes vector types (e.g., __m128, __m256i).

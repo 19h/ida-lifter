@@ -145,4 +145,32 @@ merror_t handle_vpack(codegen_t &cdg);
 // Test
 merror_t handle_vptest(codegen_t &cdg);
 
+// FMA add/sub alternating
+merror_t handle_vfmaddsub(codegen_t &cdg);
+
+// Move mask
+merror_t handle_vmovmsk(codegen_t &cdg);
+
+// Non-temporal store
+merror_t handle_vmovnt(codegen_t &cdg);
+
+// Broadcast byte/word
+merror_t handle_vpbroadcast_b_w(codegen_t &cdg);
+
+// Insert
+merror_t handle_vpinsert(codegen_t &cdg);
+
+// Sign/zero extend
+merror_t handle_vpmovsx(codegen_t &cdg);
+merror_t handle_vpmovzx(codegen_t &cdg);
+
+// Byte shift
+merror_t handle_vpslldq_vpsrldq(codegen_t &cdg);
+
+// Integer unpack
+merror_t handle_vpunpck(codegen_t &cdg);
+
+// Extract float to GPR/mem
+merror_t handle_vextractps(codegen_t &cdg);
+
 #endif // IDA_SDK_VERSION >= 750

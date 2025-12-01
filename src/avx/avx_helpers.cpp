@@ -15,12 +15,19 @@ bool is_mem_op(const op_t &op) { return op.type == o_mem || op.type == o_displ |
 bool is_reg_op(const op_t &op) { return op.type == o_reg; }
 bool is_xmm_reg(const op_t &op) { return op.type == o_reg && op.dtype == dt_byte16; }
 bool is_ymm_reg(const op_t &op) { return op.type == o_reg && op.dtype == dt_byte32; }
-bool is_zmm_reg(const op_t &op) { return op.type == o_reg && op.dtype == dt_byte64; }
+// ZMM check: dtype can be dt_byte64 OR the register can be in the ZMM range
+// Some instructions (like vpmovsxbd zmm, mem) may not have dt_byte64 dtype set
+bool is_zmm_reg(const op_t &op) {
+    if (op.type != o_reg) return false;
+    if (op.dtype == dt_byte64) return true;
+    // Also check register number for ZMM0-ZMM31
+    return (op.reg >= R_zmm0 && op.reg <= R_zmm31);
+}
 // AVX register (XMM or YMM) - for backwards compatibility
 bool is_avx_reg(const op_t &op) { return op.type == o_reg && (op.dtype == dt_byte16 || op.dtype == dt_byte32); }
 
 // Any vector register (XMM, YMM, or ZMM)
-bool is_vector_reg(const op_t &op) { return op.type == o_reg && (op.dtype == dt_byte16 || op.dtype == dt_byte32 || op.dtype == dt_byte64); }
+bool is_vector_reg(const op_t &op) { return op.type == o_reg && (op.dtype == dt_byte16 || op.dtype == dt_byte32 || op.dtype == dt_byte64 || (op.reg >= R_zmm0 && op.reg <= R_zmm31)); }
 
 // Check if operand is an AVX-512 register (including ZMM)
 bool is_avx512_reg(const op_t &op) {

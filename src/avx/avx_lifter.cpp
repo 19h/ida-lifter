@@ -66,6 +66,10 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
+                 is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
+                 is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
+                 is_pmovsx_insn(it) || is_pmovzx_insn(it) ||
+                 is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
                  it == NN_vsqrtsd;
 
         if (m) {
@@ -237,6 +241,36 @@ struct ida_local AVXLifter : microcode_filter_t {
         // pack
         if (is_pack_insn(it)) return handle_vpack(cdg);
 
+        // fmaddsub/fmsubadd
+        if (is_fmaddsub_insn(it)) return handle_vfmaddsub(cdg);
+
+        // move mask to GPR
+        if (is_movmsk_insn(it)) return handle_vmovmsk(cdg);
+
+        // non-temporal store
+        if (is_movnt_insn(it)) return handle_vmovnt(cdg);
+
+        // broadcast byte/word
+        if (is_vpbroadcast_b_w(it)) return handle_vpbroadcast_b_w(cdg);
+
+        // insert into vector
+        if (is_pinsert_insn(it)) return handle_vpinsert(cdg);
+
+        // sign extend
+        if (is_pmovsx_insn(it)) return handle_vpmovsx(cdg);
+
+        // zero extend
+        if (is_pmovzx_insn(it)) return handle_vpmovzx(cdg);
+
+        // byte shift
+        if (is_byte_shift_insn(it)) return handle_vpslldq_vpsrldq(cdg);
+
+        // integer unpack
+        if (is_punpck_insn(it)) return handle_vpunpck(cdg);
+
+        // extract float to GPR/mem
+        if (is_extractps_insn(it)) return handle_vextractps(cdg);
+
         // Note: vptest is NOT lifted - it sets flags without a vector destination
         // Let IDA handle it natively
 
@@ -317,7 +351,7 @@ extern "C" void set_debug_logging(bool enabled) {
 static void MicroAvx_init() {
     if (g_avx) return;
 
-    // Disable debug logging and printing by default to avoid potential hangs
+    // Disable debug logging and printing by default
     debug_logging_enabled = false;
     ::set_debug_printing(false);
 

@@ -149,6 +149,26 @@ bool is_movdup_insn(uint16 it);
 
 bool is_unpack_insn(uint16 it);
 
+bool is_fmaddsub_insn(uint16 it);
+
+bool is_movmsk_insn(uint16 it);
+
+bool is_movnt_insn(uint16 it);
+
+bool is_vpbroadcast_b_w(uint16 it);
+
+bool is_pinsert_insn(uint16 it);
+
+bool is_pmovsx_insn(uint16 it);
+
+bool is_pmovzx_insn(uint16 it);
+
+bool is_byte_shift_insn(uint16 it);
+
+bool is_punpck_insn(uint16 it);
+
+bool is_extractps_insn(uint16 it);
+
 // Predicate extraction
 uint8 get_cmp_predicate(uint16 it);
 
