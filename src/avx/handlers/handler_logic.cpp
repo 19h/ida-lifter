@@ -786,9 +786,32 @@ merror_t handle_vmovsldup(codegen_t &cdg) {
 merror_t handle_vmovddup(codegen_t &cdg) {
     // vmovddup xmm1, xmm2/m64 or ymm1, ymm2/m256
     // Duplicate the low double-precision element
+    // XMM variant: loads 64-bit from memory, duplicates to fill 128-bit register
+    // YMM variant: loads 256-bit from memory
     int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
     mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
-    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    // Handle memory operand for XMM variant specially:
+    // vmovddup xmm, m64 loads only 8 bytes but intrinsic expects __m128d (16 bytes)
+    mreg_t src;
+    mreg_t t_mem = mr_none;
+    if (is_mem_op(cdg.insn.Op2) && size == XMM_SIZE) {
+        // XMM variant with memory: load 8 bytes, zero-extend to 16 bytes
+        AvxOpLoader src_in(cdg, 1, cdg.insn.Op2);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src_mop(src_in.reg, DOUBLE_SIZE);  // 8 bytes loaded
+        mop_t dst_mop(t_mem, XMM_SIZE);          // 16 bytes for intrinsic
+        mop_t empty;
+        cdg.emit(m_xdu, &src_mop, &empty, &dst_mop);  // zero-extend
+        src = t_mem;
+    } else if (is_mem_op(cdg.insn.Op2)) {
+        // YMM variant with memory: load full 32 bytes
+        AvxOpLoader src_in(cdg, 1, cdg.insn.Op2);
+        src = src_in.reg;
+    } else {
+        // Register operand
+        src = reg2mreg(cdg.insn.Op2.reg);
+    }
 
     qstring iname;
     iname.cat_sprnt("_mm%s_movedup_pd", size == YMM_SIZE ? "256" : "");
@@ -800,6 +823,7 @@ merror_t handle_vmovddup(codegen_t &cdg) {
     icall.set_return_reg(dst, vt);
     icall.emit();
 
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     if (size == XMM_SIZE) clear_upper(cdg, dst);
     return MERR_OK;
 }
