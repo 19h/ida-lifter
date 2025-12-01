@@ -223,4 +223,24 @@ minsn_t *AVXIntrinsic::emit() {
     return result;
 }
 
+minsn_t *AVXIntrinsic::emit_void() {
+    // Emit a void-returning intrinsic (like store intrinsics)
+    // Don't require mov_insn - just emit the call directly
+    if (!cdg->mb) {
+        ERROR_LOG("Microblock is NULL");
+        return nullptr;
+    }
+    if (!call_insn) {
+        ERROR_LOG("Call instruction is NULL");
+        return nullptr;
+    }
+
+    // For void return, set the destination size to 0
+    call_insn->d.size = 0;
+
+    minsn_t *result = cdg->mb->insert_into_block(call_insn, cdg->mb->tail);
+    emitted = true; // Ownership transferred to block
+    return result;
+}
+
 #endif // IDA_SDK_VERSION >= 750

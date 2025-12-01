@@ -42,6 +42,9 @@ struct ida_local AVXIntrinsic {
     void add_argument_mask(mreg_t mreg, int num_elements);
 
     minsn_t *emit();
+
+    // Emit a void-returning intrinsic (like store intrinsics)
+    minsn_t *emit_void();
 };
 
 #endif // IDA_SDK_VERSION >= 750

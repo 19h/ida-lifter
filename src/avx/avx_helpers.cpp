@@ -3,6 +3,8 @@ AVX Helper Functions
 */
 
 #include "avx_helpers.h"
+#include "avx_intrinsic.h"
+#include "avx_types.h"
 
 #if IDA_SDK_VERSION >= 750
 
@@ -172,51 +174,110 @@ mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size) {
     return dst_mreg;
 }
 
-// Emit a ZMM (64-byte) store to memory using load_effective_address() + manual m_stx.
-// This bypasses store_operand_hack() for 64-byte sources.
+// Emit a vector store to memory using manual m_stx emission.
+// This bypasses the ldx->stx conversion approach which fails for global addresses.
+//
+// For global addresses (o_mem): uses m_mov to mop_v (global variable)
+// For other memory operands: uses load_effective_address() + m_stx
 //
 // m_stx format: stx l, {r=seg, d=off}
-// - l: source value (size = data size, 64 for ZMM)
+// - l: source value (size = data size)
 // - seg: segment register (size 2, typically DS)
 // - off: memory offset/address (size = address size, 8 for 64-bit)
-bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size) {
-    // 1. Compute effective address
-    mreg_t ea_reg = cdg.load_effective_address(opidx);
-    if (ea_reg == mr_none) {
+bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size) {
+    const op_t &op = opidx == 0 ? cdg.insn.Op1 : (opidx == 1 ? cdg.insn.Op2 : cdg.insn.Op3);
+
+    // Build source operand with UDT flag for large sizes
+    mop_t src;
+    src.make_reg(src_mreg, vec_size);
+    if (vec_size > 8) {
+        src.set_udt();
+    }
+
+    if (op.type == o_mem) {
+        // Direct memory reference (global address)
+        // Use a store intrinsic like _mm256_storeu_ps(void*, __m256)
+        // This avoids issues with m_stx and large operands
+
+        int addr_size = inf_is_64bit() ? 8 : 4;
+
+        // Load the address into a register
+        mreg_t addr_reg = cdg.mba->alloc_kreg(addr_size);
+        mop_t addr_imm;
+        addr_imm.make_number(op.addr, addr_size);
+        mop_t addr_dst;
+        addr_dst.make_reg(addr_reg, addr_size);
+        mop_t empty;
+        cdg.emit(m_mov, &addr_imm, &empty, &addr_dst);
+
+        // Determine intrinsic name based on size
+        const char *iname;
+        if (vec_size == ZMM_SIZE) {
+            iname = "_mm512_storeu_ps";  // Use ps variant (works for all data)
+        } else if (vec_size == YMM_SIZE) {
+            iname = "_mm256_storeu_ps";
+        } else {
+            iname = "_mm_storeu_ps";
+        }
+
+        // Create void* type for the address argument
+        tinfo_t ptr_type;
+        ptr_type.create_ptr(tinfo_t(BT_VOID));
+
+        // Create vector type for the value argument
+        tinfo_t vec_type = get_vector_type(vec_size, false, false);
+
+        // Build the intrinsic call (void return, so no set_return_reg)
+        AVXIntrinsic icall(&cdg, iname);
+        icall.add_argument_reg(addr_reg, ptr_type);
+        icall.add_argument_reg(src_mreg, vec_type);
+        icall.emit_void();  // emit without return value
+
+        // Don't free addr_reg - it's used in the emitted instruction
+
+        return true;
+    }
+
+    // o_displ or o_phrase - use load_effective_address + m_stx
+    int addr_size = inf_is_64bit() ? 8 : 4;
+
+    // Build segment operand - use the actual segment from the instruction if present
+    mop_t seg;
+    int seg_reg = (cdg.insn.segpref != 0) ? cdg.insn.segpref : R_ds;
+    seg.make_reg(reg2mreg(seg_reg), 2);
+
+    mreg_t computed_ea = cdg.load_effective_address(opidx);
+    if (computed_ea == mr_none) {
         return false;
     }
 
-    // 2. Determine address size
-    int addr_size = inf_is_64bit() ? 8 : 4;
-
-    // 3. Build source operand with UDT flag
-    mop_t src;
-    src.make_reg(src_mreg, zmm_size);
-    src.set_udt();
-
-    // 4. Build segment operand
-    mop_t seg;
-    seg.make_reg(reg2mreg(R_ds), 2);
-
-    // 5. Build offset operand
     mop_t off;
-    off.make_reg(ea_reg, addr_size);
+    off.make_reg(computed_ea, addr_size);
 
-    // 6. Emit m_stx
-    // m_stx: stx l, {r=seg, d=off}
+    // Emit m_stx: stx l, {r=seg, d=off}
     minsn_t *stx = cdg.emit(m_stx, &src, &seg, &off);
+
+    // NOTE: Do NOT free computed_ea - it's referenced by the emitted instruction.
+    // The microcode engine manages the lifetime of values in emitted instructions.
+
     return stx != nullptr;
+}
+
+// Legacy name for backwards compatibility
+bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size) {
+    return emit_vector_store(cdg, opidx, src_mreg, zmm_size);
 }
 
 // Store operand - handles all sizes including ZMM (64-byte)
 bool store_operand_hack(codegen_t &cdg, int n, const mop_t &mop, int flags, minsn_t **outins) {
-    // For ZMM sizes, use the manual emit approach
-    if (mop.size > YMM_SIZE) {
+    // For large operands (> 8 bytes, i.e., XMM/YMM/ZMM), use the manual emit approach
+    // The ldx->stx conversion approach fails for global addresses (o_mem) with INTERR 50708
+    if (mop.size > 8) {
         // mop contains the source register
         if (mop.t != mop_r) {
             return false;  // Only register sources supported
         }
-        return emit_zmm_store(cdg, n, mop.r, mop.size);
+        return emit_vector_store(cdg, n, mop.r, mop.size);
     }
 
 #if IDA_SDK_VERSION < 760
@@ -248,22 +309,11 @@ bool store_operand_hack(codegen_t &cdg, int n, const mop_t &mop, int flags, mins
     ins->r = ins->l; // mem segment
     ins->l = mop; // value to store
 
-    // For sizes > 8 bytes, set UDT flag on the value operand for verification
-    if (mop.size > 8) {
-        ins->l.set_udt();
-    }
-
     if (outins) *outins = ins;
     return true;
 #else
-    // For IDA >= 7.6, store_operand should work but may still need UDT handling
+    // For standard sizes (<= 8 bytes), use store_operand
     bool result = cdg.store_operand(n, mop, flags, outins);
-
-    // If we have a large operand and store succeeded, ensure UDT flag is set
-    if (result && mop.size > 8 && outins && *outins) {
-        (*outins)->l.set_udt();
-    }
-
     return result;
 #endif
 }

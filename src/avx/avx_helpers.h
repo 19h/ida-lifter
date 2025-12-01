@@ -53,9 +53,13 @@ mreg_t load_operand_udt(codegen_t &cdg, int opnum, int size);
 // Returns the destination register containing the loaded value, or mr_none on failure.
 mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size = ZMM_SIZE);
 
-// Emit a ZMM (64-byte) store to memory using load_effective_address() + manual m_stx.
-// This bypasses store_operand_hack() for 64-byte sources.
+// Emit a vector store to memory using load_effective_address() + manual m_stx.
+// This bypasses the ldx->stx conversion approach which fails for global addresses.
+// Works for XMM (16-byte), YMM (32-byte), and ZMM (64-byte) sizes.
 // Returns true on success, false on failure.
+bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size);
+
+// Legacy name for backwards compatibility
 bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size = ZMM_SIZE);
 
 // AVX-512 masking support
