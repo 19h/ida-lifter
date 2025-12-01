@@ -174,93 +174,63 @@ mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size) {
     return dst_mreg;
 }
 
-// Emit a vector store to memory using manual m_stx emission.
-// This bypasses the ldx->stx conversion approach which fails for global addresses.
+// Emit a vector store to memory using store intrinsics.
+// This bypasses m_stx emission which causes INTERR 50708 for large operands.
 //
-// For global addresses (o_mem): uses m_mov to mop_v (global variable)
-// For other memory operands: uses load_effective_address() + m_stx
+// All vector stores (XMM/YMM/ZMM) are emitted as intrinsic calls:
+// - _mm_storeu_ps / _mm256_storeu_ps / _mm512_storeu_ps
 //
-// m_stx format: stx l, {r=seg, d=off}
-// - l: source value (size = data size)
-// - seg: segment register (size 2, typically DS)
-// - off: memory offset/address (size = address size, 8 for 64-bit)
+// This approach works for all memory operand types (global, stack, heap).
 bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size) {
     const op_t &op = opidx == 0 ? cdg.insn.Op1 : (opidx == 1 ? cdg.insn.Op2 : cdg.insn.Op3);
+    int addr_size = inf_is_64bit() ? 8 : 4;
 
-    // Build source operand with UDT flag for large sizes
-    mop_t src;
-    src.make_reg(src_mreg, vec_size);
-    if (vec_size > 8) {
-        src.set_udt();
-    }
+    // Get the effective address into a register
+    mreg_t addr_reg;
 
     if (op.type == o_mem) {
-        // Direct memory reference (global address)
-        // Use a store intrinsic like _mm256_storeu_ps(void*, __m256)
-        // This avoids issues with m_stx and large operands
-
-        int addr_size = inf_is_64bit() ? 8 : 4;
-
-        // Load the address into a register
-        mreg_t addr_reg = cdg.mba->alloc_kreg(addr_size);
+        // Direct memory reference (global address) - load immediate address
+        addr_reg = cdg.mba->alloc_kreg(addr_size);
         mop_t addr_imm;
         addr_imm.make_number(op.addr, addr_size);
         mop_t addr_dst;
         addr_dst.make_reg(addr_reg, addr_size);
         mop_t empty;
         cdg.emit(m_mov, &addr_imm, &empty, &addr_dst);
-
-        // Determine intrinsic name based on size
-        const char *iname;
-        if (vec_size == ZMM_SIZE) {
-            iname = "_mm512_storeu_ps";  // Use ps variant (works for all data)
-        } else if (vec_size == YMM_SIZE) {
-            iname = "_mm256_storeu_ps";
-        } else {
-            iname = "_mm_storeu_ps";
+    } else {
+        // o_displ or o_phrase - compute effective address
+        addr_reg = cdg.load_effective_address(opidx);
+        if (addr_reg == mr_none) {
+            return false;
         }
-
-        // Create void* type for the address argument
-        tinfo_t ptr_type;
-        ptr_type.create_ptr(tinfo_t(BT_VOID));
-
-        // Create vector type for the value argument
-        tinfo_t vec_type = get_vector_type(vec_size, false, false);
-
-        // Build the intrinsic call (void return, so no set_return_reg)
-        AVXIntrinsic icall(&cdg, iname);
-        icall.add_argument_reg(addr_reg, ptr_type);
-        icall.add_argument_reg(src_mreg, vec_type);
-        icall.emit_void();  // emit without return value
-
-        // Don't free addr_reg - it's used in the emitted instruction
-
-        return true;
     }
 
-    // o_displ or o_phrase - use load_effective_address + m_stx
-    int addr_size = inf_is_64bit() ? 8 : 4;
-
-    // Build segment operand - use the actual segment from the instruction if present
-    mop_t seg;
-    int seg_reg = (cdg.insn.segpref != 0) ? cdg.insn.segpref : R_ds;
-    seg.make_reg(reg2mreg(seg_reg), 2);
-
-    mreg_t computed_ea = cdg.load_effective_address(opidx);
-    if (computed_ea == mr_none) {
-        return false;
+    // Determine intrinsic name based on size
+    const char *iname;
+    if (vec_size == ZMM_SIZE) {
+        iname = "_mm512_storeu_ps";
+    } else if (vec_size == YMM_SIZE) {
+        iname = "_mm256_storeu_ps";
+    } else {
+        iname = "_mm_storeu_ps";
     }
 
-    mop_t off;
-    off.make_reg(computed_ea, addr_size);
+    // Create void* type for the address argument
+    tinfo_t ptr_type;
+    ptr_type.create_ptr(tinfo_t(BT_VOID));
 
-    // Emit m_stx: stx l, {r=seg, d=off}
-    minsn_t *stx = cdg.emit(m_stx, &src, &seg, &off);
+    // Create vector type for the value argument
+    tinfo_t vec_type = get_vector_type(vec_size, false, false);
 
-    // NOTE: Do NOT free computed_ea - it's referenced by the emitted instruction.
-    // The microcode engine manages the lifetime of values in emitted instructions.
+    // Build the intrinsic call (void return)
+    AVXIntrinsic icall(&cdg, iname);
+    icall.add_argument_reg(addr_reg, ptr_type);
+    icall.add_argument_reg(src_mreg, vec_type);
+    icall.emit_void();
 
-    return stx != nullptr;
+    // Don't free addr_reg - it's used in the emitted instruction
+
+    return true;
 }
 
 // Legacy name for backwards compatibility

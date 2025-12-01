@@ -457,9 +457,29 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
                      (cdg.insn.itype >= NN_vcmpeqsd && cdg.insn.itype <= NN_vcmptrue_ussd);
     uint8 pred = get_cmp_predicate(cdg.insn.itype);
 
-    AvxOpLoader a(cdg, 1, cdg.insn.Op2);
-    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+
+    // Load first operand (always register for VEX-encoded compares)
+    AvxOpLoader a(cdg, 1, cdg.insn.Op2);
+
+    // Load second operand - handle scalar memory operands specially
+    // vcmpeqss/vcmpeqsd with memory operand loads only 4/8 bytes but intrinsic expects 16 bytes
+    mreg_t b;
+    mreg_t t_mem = mr_none;
+    if (is_scalar && is_mem_op(cdg.insn.Op3)) {
+        // Scalar compare with memory operand: load scalar, zero-extend to XMM
+        AvxOpLoader b_in(cdg, 2, cdg.insn.Op3);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src(b_in.reg, elem_size);
+        mop_t dst(t_mem, XMM_SIZE);
+        mop_t empty;
+        cdg.emit(m_xdu, &src, &empty, &dst);  // Zero-extend to XMM
+        b = t_mem;
+    } else {
+        AvxOpLoader b_in(cdg, 2, cdg.insn.Op3);
+        b = b_in.reg;
+    }
 
     const char *suf = is_scalar ? (is_double ? "sd" : "ss") : (is_double ? "pd" : "ps");
     qstring iname;
@@ -473,6 +493,7 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
     icall.set_return_reg(d, vt);
     icall.emit();
 
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
