@@ -18,9 +18,9 @@ void fluid_diffuse_avx(
 
     for (int k = 0; k < iter; k++) {
         for (int j = 1; j < FLUID_H - 1; j++) {
-            for (int i = 1; i < FLUID_W - 1; i += 8) {
-                if (i + 8 >= FLUID_W - 1) break;
-
+            // AVX path - process 8 cells at a time
+            int i;
+            for (i = 1; i + 8 <= FLUID_W - 1; i += 8) {
                 __m256 v_x0 = _mm256_loadu_ps(&x0[IX(i, j)]);
 
                 __m256 v_left   = _mm256_loadu_ps(&x[IX(i - 1, j)]);
@@ -39,6 +39,14 @@ void fluid_diffuse_avx(
                 );
 
                 _mm256_storeu_ps(&x[IX(i, j)], res);
+            }
+
+            // Scalar fallback for remaining cells
+            for (; i < FLUID_W - 1; i++) {
+                x[IX(i, j)] = (x0[IX(i, j)] + a * (
+                    x[IX(i - 1, j)] + x[IX(i + 1, j)] +
+                    x[IX(i, j - 1)] + x[IX(i, j + 1)]
+                )) * c_inv;
             }
         }
     }
@@ -60,7 +68,9 @@ void fluid_advect(
     for (int j = 1; j < FLUID_H - 1; j++) {
         __m256 v_j = _mm256_set1_ps((float)j);
 
-        for (int i = 1; i < FLUID_W - 9; i += 8) {
+        // AVX path - process 8 cells at a time
+        int i;
+        for (i = 1; i + 8 <= FLUID_W - 1; i += 8) {
             __m256 v_i = _mm256_set_ps(
                 (float)(i+7), (float)(i+6), (float)(i+5), (float)(i+4),
                 (float)(i+3), (float)(i+2), (float)(i+1), (float)i
@@ -104,7 +114,8 @@ void fluid_advect(
             _mm256_storeu_ps(&d[IX(i, j)], result);
         }
 
-        for (int i = ((FLUID_W - 9) / 8) * 8 + 1; i < FLUID_W - 1; i++) {
+        // Scalar fallback for remaining cells
+        for (; i < FLUID_W - 1; i++) {
             float x = i - dt0 * u[IX(i, j)];
             float y = j - dt0 * v[IX(i, j)];
 

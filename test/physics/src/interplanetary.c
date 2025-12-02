@@ -111,8 +111,9 @@ void calc_interplanetary_avx(
 
 void run_interplanetary_sim() {
     Viewport* vp = create_viewport();
-    
+
     Star star = {1.989e30f, 696340000.0f, {0,0,0,0}};
+    (void)star;  // Used by calc_interplanetary_avx; visualization draws star at center
     Planet p1 = {5.972e24f, 6371000.0f, 1.496e11f, 1.99e-7f, 0, {0}};
     Planet p2 = {6.39e23f, 3389500.0f, 2.279e11f, 1.05e-7f, 0, {0}};
 

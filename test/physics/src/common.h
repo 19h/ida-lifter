@@ -91,7 +91,8 @@ void render_buffer(Viewport* vp);
 void sleep_ms(int ms);
 
 // Simulation Runners
-void run_bullet_sim();
+// max_frames: -1 for unlimited, positive value for frame limit
+void run_bullet_sim(int max_frames);
 void run_interplanetary_sim();
 void run_asteroid_sim();
 void run_fluid_sim();

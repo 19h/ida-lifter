@@ -2635,7 +2635,7 @@ static void render_game(GameState* game, Viewport* vp) {
 // MAIN SIMULATION
 // ============================================================================
 
-void run_bullet_sim() {
+void run_bullet_sim(int max_frames) {
     // Switch to alternate screen buffer (like vim/htop do)
     printf("\033[?1049h\033[H");
     fflush(stdout);
@@ -2668,10 +2668,10 @@ void run_bullet_sim() {
         }
     }
 
-    // Main game loop - runs until player dies or all enemies dead
+    // Main game loop - runs until player dies, all enemies dead, or max frames reached
     int prev_bullet_count = 0;
 
-    for (game.frame = 0; ; game.frame++) {
+    for (game.frame = 0; max_frames < 0 || game.frame < max_frames; game.frame++) {
         // Update AI
         update_player_ai(&game);
 
