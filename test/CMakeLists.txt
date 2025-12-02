@@ -166,6 +166,11 @@ set(ALL_UNIT_TESTS
 
 # Comprehensive test suite
 file(GLOB INTEGRATION_TEST_FILES "integration/sources/*.c")
+# Exclude files that have their own main() and are built separately
+list(FILTER INTEGRATION_TEST_FILES EXCLUDE REGEX "test_fluid_advect\.c$")
+list(FILTER INTEGRATION_TEST_FILES EXCLUDE REGEX "test_fluid_diffuse\.c$")
+list(FILTER INTEGRATION_TEST_FILES EXCLUDE REGEX "test_avx512_mem_addps\.c$")
+list(FILTER INTEGRATION_TEST_FILES EXCLUDE REGEX "test_avx512_addps\.c$")
 add_executable(avx_comprehensive_test
     integration/main.c
     ${INTEGRATION_TEST_FILES}
