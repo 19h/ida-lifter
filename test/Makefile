@@ -1,40 +1,118 @@
-# Detect OS and Architecture
-UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
+# Makefile for AVX Lifter Test Suite
+# Wrapper around CMake build system
 
-CC = gcc
-# Base flags
-#CFLAGS = -O2 -Wall -Wextra
-CFLAGS = -Wall -Wextra
+# Build directory
+BUILD_DIR = build
 
-# Architecture specific configuration
-ifeq ($(UNAME_S),Darwin)
-    ifeq ($(UNAME_M),arm64)
-        # Apple Silicon detected: Force x86_64 to trigger Rosetta 2
-        # AVX/AVX2 are x86 extensions, not available on ARM64 native.
-        CFLAGS += -arch x86_64 -mavx -mavx2
-    else
-        # Intel Mac
-        CFLAGS += -march=native -mavx -mavx2
-    endif
-else
-    # Linux / Windows (assuming x86 environment)
-    CFLAGS += -march=native -mavx -mavx2
-endif
+# Default target
+.PHONY: all
+all: configure
+	@$(MAKE) -C $(BUILD_DIR)
 
-TARGET = avx_executor
-SRCS = main.c avx_ops.c avx2_ops.c
-OBJS = $(SRCS:.c=.o)
+# Configure CMake
+.PHONY: configure
+configure:
+	@if [ ! -d "$(BUILD_DIR)" ]; then \
+		mkdir -p $(BUILD_DIR); \
+		cd $(BUILD_DIR) && cmake ..; \
+	fi
 
-all: $(TARGET)
+# Build all tests
+.PHONY: build
+build: configure
+	@$(MAKE) -C $(BUILD_DIR)
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+# Build specific test categories
+.PHONY: unit_tests
+unit_tests: configure
+	@$(MAKE) -C $(BUILD_DIR) unit_tests
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+.PHONY: integration_tests
+integration_tests: configure
+	@$(MAKE) -C $(BUILD_DIR) integration_tests
 
+.PHONY: physics_tests
+physics_tests: configure
+	@$(MAKE) -C $(BUILD_DIR) physics_tests
+
+# Build specific tests
+.PHONY: shooter
+shooter: configure
+	@$(MAKE) -C $(BUILD_DIR) shooter
+
+.PHONY: decompiler_ref
+decompiler_ref: configure
+	@$(MAKE) -C $(BUILD_DIR) decompiler_ref
+
+.PHONY: avx_comprehensive_test
+avx_comprehensive_test: configure
+	@$(MAKE) -C $(BUILD_DIR) avx_comprehensive_test
+
+# Pattern rule for building individual unit tests
+test_%: configure
+	@$(MAKE) -C $(BUILD_DIR) $@
+
+# Clean build artifacts
+.PHONY: clean
 clean:
-	rm -f $(OBJS) $(TARGET)
+	@if [ -d "$(BUILD_DIR)" ]; then \
+		echo "Cleaning build directory..."; \
+		rm -rf $(BUILD_DIR); \
+	fi
 
-.PHONY: all clean
+# Full rebuild
+.PHONY: rebuild
+rebuild: clean all
+
+# Run tests
+.PHONY: run_shooter
+run_shooter: shooter
+	@echo "Running shooter..."
+	@$(BUILD_DIR)/shooter
+
+.PHONY: run_comprehensive
+run_comprehensive: avx_comprehensive_test
+	@echo "Running comprehensive test..."
+	@$(BUILD_DIR)/avx_comprehensive_test
+
+# Help target
+.PHONY: help
+help:
+	@echo "AVX Lifter Test Suite - Makefile Targets"
+	@echo "========================================"
+	@echo ""
+	@echo "Build Targets:"
+	@echo "  make                    - Build all tests (default)"
+	@echo "  make build              - Build all tests"
+	@echo "  make unit_tests         - Build only unit tests"
+	@echo "  make integration_tests  - Build only integration tests"
+	@echo "  make physics_tests      - Build only physics tests"
+	@echo ""
+	@echo "Specific Targets:"
+	@echo "  make shooter            - Build shooter binary"
+	@echo "  make decompiler_ref     - Build decompiler_ref binary"
+	@echo "  make test_vaddps        - Build specific unit test"
+	@echo "  make test_<name>        - Build any test by name"
+	@echo ""
+	@echo "Run Targets:"
+	@echo "  make run_shooter        - Build and run shooter"
+	@echo "  make run_comprehensive  - Build and run comprehensive test"
+	@echo ""
+	@echo "Maintenance:"
+	@echo "  make clean              - Remove build directory"
+	@echo "  make rebuild            - Clean and rebuild all"
+	@echo "  make help               - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make                           # Build everything"
+	@echo "  make test_vaddps               # Build single unit test"
+	@echo "  make shooter && build/shooter  # Build and run shooter"
+	@echo "  make clean && make             # Clean rebuild"
+
+# Prevent make from deleting intermediate files
+.SECONDARY:
+
+# Declare phony targets
+.PHONY: all configure build unit_tests integration_tests physics_tests \
+        shooter decompiler_ref avx_comprehensive_test \
+        clean rebuild run_shooter run_comprehensive help

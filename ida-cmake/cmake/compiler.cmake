@@ -71,13 +71,13 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "C
         $<$<CONFIG:Debug>:-O0>
         $<$<CONFIG:Debug>:-g3>
         $<$<CONFIG:Release>:-O3>
-        $<$<CONFIG:Release>:-flto>
+        # $<$<CONFIG:Release>:-flto>  # LTO disabled due to linker issues
     )
 
     # Linker flags
     target_link_options(ida_compiler_settings INTERFACE
         -Wl,--gc-sections
-        $<$<CONFIG:Release>:-flto>
+        # $<$<CONFIG:Release>:-flto>  # LTO disabled due to linker issues
     )
 
     # Create a separate interface library for warning suppression

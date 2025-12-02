@@ -72,27 +72,35 @@ for ( j = 0; j != 7680; j += 256 ) {
 
 ## Test Suite
 
-```
-tests/
-├── src/
-│   ├── test_avx512_addps.c      # AVX-512 register operations
-│   ├── test_avx512_mem_addps.c  # AVX-512 memory operands
-│   ├── test_fluid_advect.c      # Gather, round, FMA, insert/blend
-│   └── test_fluid_diffuse.c     # FMA with memory operands
-└── bin/                          # Compiled x86_64 test binaries
+The test suite is located in `test/` with CMake-based builds. See `test/README.md` for detailed documentation.
 
-test/physics/
-├── shooter                       # Real-world test binary (48 functions)
-└── src/
-    ├── fluid.c                   # Navier-Stokes fluid vortex (AVX diffuse/advect)
-    ├── bullet.c                  # 2D shooter with enemy AI, pathfinding, sound detection
-    ├── asteroid.c                # Relativistic asteroid trajectory (SSE gravity)
-    └── interplanetary.c          # Earth-Mars orbital mechanics, line-of-sight (AVX)
+```
+test/
+├── CMakeLists.txt              # Unified build system
+├── unit/                       # ~75 individual instruction tests
+│   ├── sources/               # Test implementations (test_vaddps.c, etc.)
+│   └── stubs/                 # Test harnesses by signature
+├── integration/               # Multi-instruction complex tests
+│   ├── avx_comprehensive_test.c  # Exhaustive coverage (~2000 lines)
+│   ├── test_fluid_advect.c       # Gather, round, FMA, blend
+│   └── test_scalar.c             # Scalar AVX operations
+└── physics/                   # Real-world SIMD workloads
+    ├── shooter                # Primary validation binary (48 functions)
+    └── src/
+        ├── fluid.c            # Navier-Stokes fluid vortex (AVX)
+        ├── bullet.c           # 2D shooter with enemy AI, A* pathfinding
+        ├── asteroid.c         # Relativistic orbital mechanics (SSE)
+        └── interplanetary.c   # Earth-Mars trajectory (AVX)
 ```
 
-Run tests:
+Build and run:
 ```bash
-cd tests && make bins && make run
+cd test
+mkdir build && cd build
+cmake ..
+make                    # Build all tests
+make shooter            # Build specific test
+./shooter               # Run test
 ```
 
 ## Building
@@ -241,5 +249,7 @@ MIT
 ## See Also
 
 - `CLAUDE.md` - Detailed technical documentation with implementation notes
-- `tests/` - Isolated test cases for instruction categories
+- `test/README.md` - Complete test suite documentation
+- `test/unit/` - Individual instruction tests
+- `test/integration/` - Multi-instruction complex tests
 - `test/physics/` - Real-world physics simulation test suite
