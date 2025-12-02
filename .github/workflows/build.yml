@@ -1,0 +1,194 @@
+name: Build IDA Lifter Plugin
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+env:
+  IDA_SDK_REPO: HexRaysSA/ida-sdk
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS builds (SDK supports both x64 and arm64)
+          - os: macos-latest
+            name: macos-x86_64
+            cmake_arch: x86_64
+          - os: macos-latest
+            name: macos-arm64
+            cmake_arch: arm64
+
+          # Linux build (SDK only supports x64)
+          - os: ubuntu-latest
+            name: linux-x86_64
+
+          # Windows build (SDK only supports x64)
+          - os: windows-latest
+            name: windows-x86_64
+            cmake_arch: x64
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Checkout IDA SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.IDA_SDK_REPO }}
+          path: ida-sdk
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.cmake_arch }}
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.cmake_arch }} \
+            -DIDASDK_VER=92
+        env:
+          IDASDK: ${{ github.workspace }}/ida-sdk
+
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DIDASDK_VER=92
+        env:
+          IDASDK: ${{ github.workspace }}/ida-sdk
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir build -Force
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} -DIDASDK_VER=92
+        env:
+          IDASDK: ${{ github.workspace }}/ida-sdk
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd build
+          cmake --build . --config Release -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd build
+          cmake --build . --config Release
+
+      - name: Find built plugin (Unix)
+        if: runner.os != 'Windows'
+        id: find_plugin_unix
+        run: |
+          # Plugin is built to ida-sdk/src/bin/plugins/
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            PLUGIN_FILE=$(find . -name "lifter*.dylib" -type f | head -1)
+            EXT="dylib"
+          else
+            PLUGIN_FILE=$(find . -name "lifter*.so" -type f | head -1)
+            EXT="so"
+          fi
+
+          if [ -z "$PLUGIN_FILE" ]; then
+            echo "ERROR: Could not find built plugin"
+            find . -type f -name "lifter*"
+            exit 1
+          fi
+
+          echo "plugin_file=$PLUGIN_FILE" >> $GITHUB_OUTPUT
+          echo "extension=$EXT" >> $GITHUB_OUTPUT
+          echo "Found plugin: $PLUGIN_FILE"
+
+      - name: Find built plugin (Windows)
+        if: runner.os == 'Windows'
+        id: find_plugin_windows
+        shell: pwsh
+        run: |
+          # Plugin is built to ida-sdk/src/bin/plugins/
+          $plugin = Get-ChildItem -Path . -Recurse -Filter "lifter*.dll" | Select-Object -First 1
+          if ($null -eq $plugin) {
+            Write-Error "Could not find built plugin"
+            Get-ChildItem -Path . -Recurse -Filter "lifter*"
+            exit 1
+          }
+          echo "plugin_file=$($plugin.FullName)" >> $env:GITHUB_OUTPUT
+          echo "extension=dll" >> $env:GITHUB_OUTPUT
+          Write-Host "Found plugin: $($plugin.FullName)"
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p artifacts
+          cp "${{ steps.find_plugin_unix.outputs.plugin_file }}" "artifacts/lifter_${{ matrix.name }}.${{ steps.find_plugin_unix.outputs.extension }}"
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts
+          Copy-Item "${{ steps.find_plugin_windows.outputs.plugin_file }}" "artifacts/lifter_${{ matrix.name }}.${{ steps.find_plugin_windows.outputs.extension }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifter-${{ matrix.name }}
+          path: artifacts/
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.dylib" -o -name "*.so" -o -name "*.dll" \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

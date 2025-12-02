@@ -7,7 +7,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(IDAPROPLAT "__NT__")
 
     # Detect architecture
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+        set(IDA_ARCH "arm64")
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(IDA_ARCH "x64")
     else()
         set(IDA_ARCH "x86")
@@ -78,8 +80,14 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(IDA_PLATFORM "LINUX")
     set(IDA_PLATFORM_NAME "linux")
-    set(IDA_ARCH "x64")
     set(IDAPROPLAT "__LINUX__")
+
+    # Detect architecture
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+        set(IDA_ARCH "arm64")
+    else()
+        set(IDA_ARCH "x64")
+    endif()
 
     # Compiler detection for Linux
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
