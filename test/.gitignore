@@ -15,6 +15,7 @@ test_*
 avx_*
 decompiler_ref
 shooter
+!shooter/
 
 # IDA Pro files
 *.id0

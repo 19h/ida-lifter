@@ -215,23 +215,20 @@ add_executable(decompiler_ref
 )
 target_link_libraries(decompiler_ref m)
 
-# Shooter binary (original game with bullet hell + procedural levels)
-add_executable(shooter
-    physics/src/shooter_main.c
-    physics/src/vis.c
-    physics/src/bullet.c
-)
-target_link_libraries(shooter m)
-
 # Apply physics-specific optimizations
-set_target_properties(decompiler_ref shooter PROPERTIES
+set_target_properties(decompiler_ref PROPERTIES
     COMPILE_FLAGS "-O3 -ffast-math -msse4.1"
 )
 
 set(ALL_PHYSICS_TESTS
     decompiler_ref
-    shooter
 )
+
+#==============================================================================
+# SHOOTER GAME - Standalone build with proper directory structure
+#==============================================================================
+
+add_subdirectory(shooter)
 
 #==============================================================================
 # CUSTOM TARGETS
@@ -239,7 +236,7 @@ set(ALL_PHYSICS_TESTS
 
 # Build all tests
 add_custom_target(all_tests
-    DEPENDS ${ALL_UNIT_TESTS} ${ALL_INTEGRATION_TESTS} ${ALL_PHYSICS_TESTS}
+    DEPENDS ${ALL_UNIT_TESTS} ${ALL_INTEGRATION_TESTS} ${ALL_PHYSICS_TESTS} shooter
 )
 
 # Build only unit tests
@@ -257,7 +254,13 @@ add_custom_target(physics_tests
     DEPENDS ${ALL_PHYSICS_TESTS}
 )
 
+# Build shooter game
+add_custom_target(shooter_tests
+    DEPENDS shooter
+)
+
 message(STATUS "Configured ${CMAKE_PROJECT_NAME}:")
-message(STATUS "  Unit tests:        ${CMAKE_CURRENT_LIST_LENGTH} targets")
+message(STATUS "  Unit tests:        multiple targets")
 message(STATUS "  Integration tests: 5 targets")
-message(STATUS "  Physics tests:     2 targets")
+message(STATUS "  Physics tests:     1 target (decompiler_ref)")
+message(STATUS "  Shooter game:      1 target (from shooter/ subdirectory)")
