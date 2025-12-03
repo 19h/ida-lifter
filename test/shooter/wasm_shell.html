@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shooter - AVX SIMD WebAssembly Demo</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #terminal-container {
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        #terminal {
+            width: 100%;
+            height: 100%;
+        }
+
+        #status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00d4ff;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            color: #00d4ff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            z-index: 1000;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #00d4ff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .xterm {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal-container">
+        <div id="terminal"></div>
+    </div>
+
+    <div id="status">
+        <span class="spinner"></span>
+        Loading WebAssembly module...
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script type='text/javascript'>
+        var statusElement = document.getElementById('status');
+        var term = null;
+        var fitAddon = null;
+        var termCols = 80;
+        var termRows = 24;
+
+        // Initialize xterm.js terminal
+        function initTerminal() {
+            term = new Terminal({
+                cursorBlink: false,
+                cursorStyle: 'block',
+                theme: {
+                    background: '#000000',
+                    foreground: '#e0e0e0',
+                    cursor: '#00d4ff',
+                    black: '#000000',
+                    red: '#cd0000',
+                    green: '#00cd00',
+                    yellow: '#cdcd00',
+                    blue: '#0000cd',
+                    magenta: '#cd00cd',
+                    cyan: '#00cdcd',
+                    white: '#e5e5e5',
+                    brightBlack: '#7f7f7f',
+                    brightRed: '#ff0000',
+                    brightGreen: '#00ff00',
+                    brightYellow: '#ffff00',
+                    brightBlue: '#5c5cff',
+                    brightMagenta: '#ff00ff',
+                    brightCyan: '#00ffff',
+                    brightWhite: '#ffffff'
+                },
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
+                fontSize: 14,
+                lineHeight: 1.0,
+                scrollback: 0,
+                allowProposedApi: true
+            });
+
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(document.getElementById('terminal'));
+            fitAddon.fit();
+
+            termCols = term.cols;
+            termRows = term.rows;
+
+            term.write('\x1b[?25l'); // Hide cursor
+
+            // Re-fit on window resize
+            window.addEventListener('resize', function() {
+                fitAddon.fit();
+                termCols = term.cols;
+                termRows = term.rows;
+            });
+        }
+
+        initTerminal();
+
+        var Module = {
+            preRun: [function() {
+                // Override stdout to write directly to xterm (character by character)
+                // This captures all output including ANSI escape sequences without newline buffering
+                function stdin() { return null; }
+                function stdout(charCode) {
+                    if (charCode === null) return;
+                    if (term) {
+                        term.write(String.fromCharCode(charCode));
+                    }
+                }
+                function stderr(charCode) {
+                    if (charCode === null) return;
+                    if (term) {
+                        term.write(String.fromCharCode(charCode));
+                    }
+                    // Also log to console for debugging
+                    if (charCode === 10) console.error('');
+                }
+                FS.init(stdin, stdout, stderr);
+            }],
+            postRun: [],
+            print: function(text) {
+                // Fallback for any print calls
+                if (term) {
+                    term.write(text + '\r\n');
+                }
+                console.log(text);
+            },
+            printErr: function(text) {
+                if (term) {
+                    term.write('\x1b[31m' + text + '\x1b[0m\r\n');
+                }
+                console.error(text);
+            },
+            setStatus: function(text) {
+                if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+                if (text === Module.setStatus.last.text) return;
+                var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                var now = Date.now();
+                if (m && now - Module.setStatus.last.time < 30) return;
+                Module.setStatus.last.time = now;
+                Module.setStatus.last.text = text;
+                if (m) {
+                    text = m[1];
+                    var progress = parseInt(m[2]) / parseInt(m[4]) * 100;
+                    statusElement.innerHTML = '<span class="spinner"></span>' + text + ' (' + progress.toFixed(0) + '%)';
+                } else if (text) {
+                    statusElement.innerHTML = '<span class="spinner"></span>' + text;
+                } else {
+                    statusElement.innerHTML = 'Running';
+                    statusElement.style.background = 'rgba(0, 212, 255, 0.2)';
+                    statusElement.style.color = '#00d4ff';
+                }
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+            }
+        };
+
+        Module.setStatus('Downloading...');
+
+        window.onerror = function(event) {
+            Module.setStatus('Error: ' + event);
+            statusElement.style.background = 'rgba(255, 0, 0, 0.2)';
+            statusElement.style.color = '#f55';
+        };
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>

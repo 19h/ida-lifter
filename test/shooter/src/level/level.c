@@ -8,6 +8,7 @@
 #include "core/rng.h"
 #include "math/sse_math.h"
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
 
 /* ==========================================================================

@@ -398,7 +398,7 @@ static void avx_select_best_actions(
         _mm256_castps_si256(cmp));
 
     _mm256_storeu_ps(out_values, best);
-    _mm256_storeu_si256((__m256i*)out_actions, best_action);
+    STOREU_SI256(out_actions, best_action);
 }
 
 /* ==========================================================================
@@ -908,14 +908,14 @@ void update_enemy_ai_advanced(GameState* game, int entity_id) {
         float __attribute__((aligned(32))) utility_scores[8];
 
         /* Quick single-entity utility calculation */
-        utility_scores[0] = avx_score_attack_8(
+        utility_scores[0] = AVX_EXTRACT_F0(avx_score_attack_8(
             _mm256_set1_ps(e->weapon.mag_current > 0 ? 1.0f : 0.0f),
             _mm256_set1_ps(e->primary_threat >= 0 && e->threats[e->primary_threat].is_visible ? 1.0f : 0.0f),
             _mm256_set1_ps(1.0f),
             _mm256_set1_ps(e->health / e->max_health),
             _mm256_set1_ps(e->archetype ? e->archetype->aggression : 0.5f),
             _mm256_set1_ps(0.0f)
-        )[0];
+        ));
 
         /* Use NN action if it agrees with utility, otherwise use utility */
         if (nn_action == e->state || game->frame % 90 == 0) {

@@ -13,7 +13,19 @@
 #include <math.h>
 #include <time.h>
 
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+/* Get terminal dimensions from JavaScript */
+EM_JS(int, get_term_cols, (), {
+    return (typeof termCols !== 'undefined') ? termCols : 120;
+});
+
+EM_JS(int, get_term_rows, (), {
+    return (typeof termRows !== 'undefined') ? termRows : 40;
+});
+
+#elif defined(_WIN32)
 #include <windows.h>
 #else
 #include <sys/ioctl.h>
@@ -117,7 +129,11 @@ Viewport* create_viewport(void) {
     Viewport* vp = malloc(sizeof(Viewport));
     if (!vp) return NULL;
 
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+    /* Get size from xterm.js via JavaScript */
+    vp->width = get_term_cols();
+    vp->height = get_term_rows();
+#elif defined(_WIN32)
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     vp->width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
@@ -321,7 +337,10 @@ void render_buffer(Viewport* vp) {
 }
 
 void sleep_ms(int ms) {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+    /* emscripten_sleep requires ASYNCIFY to yield properly */
+    emscripten_sleep((unsigned int)ms);
+#elif defined(_WIN32)
     Sleep(ms);
 #else
     struct timespec ts;
@@ -351,8 +370,12 @@ void render_game(GameState* game, Viewport* vp) {
     game->camera_y = sse_lerp(game->camera_y, target_cam_y, 0.1f);
 
     /* Clamp camera to level bounds using SSE clamp */
-    game->camera_x = sse_clamp(game->camera_x, 0, (float)(LEVEL_WIDTH - game_area_width));
-    game->camera_y = sse_clamp(game->camera_y, 0, (float)(LEVEL_HEIGHT - game_area_height));
+    float max_cam_x = (float)(LEVEL_WIDTH - game_area_width);
+    float max_cam_y = (float)(LEVEL_HEIGHT - game_area_height);
+    if (max_cam_x < 0) max_cam_x = 0;  /* Level smaller than viewport */
+    if (max_cam_y < 0) max_cam_y = 0;
+    game->camera_x = sse_clamp(game->camera_x, 0, max_cam_x);
+    game->camera_y = sse_clamp(game->camera_y, 0, max_cam_y);
 
     int cam_x = (int)game->camera_x;
     int cam_y = (int)game->camera_y;

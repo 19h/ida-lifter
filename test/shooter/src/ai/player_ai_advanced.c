@@ -883,21 +883,63 @@ void update_player_ai_advanced(GameState* game) {
                         }
                     }
                 } else {
-                    /* Lost sight - hunt */
+                    /* Lost sight - move toward target anyway */
                     player->frames_target_visible = 0;
-                    player->last_seen_x = target->x;
-                    player->last_seen_y = target->y;
 
-                    float dx = player->last_seen_x - player->x;
-                    float dy = player->last_seen_y - player->y;
+                    /* Always move toward the enemy, even if can't see them */
+                    float dx = target->x - player->x;
+                    float dy = target->y - player->y;
                     float dist = sse_distance(0, 0, dx, dy);
 
-                    if (dist > 2.0f) {
+                    if (dist > 1.5f) {
                         sse_normalize(&dx, &dy);
                         move_x = dx;
                         move_y = dy;
+                        player->facing_angle = atan2f(dy, dx);
                         player->is_running = true;
+
+                        /* Try to shoot even without visibility check if close */
+                        if (dist < wstats.range * 0.5f) {
+                            should_shoot = true;
+                        }
+                    } else {
+                        /* Very close - strafe around */
+                        sse_normalize(&dx, &dy);
+                        float strafe = ((game->frame / 20) % 2 == 0) ? 1.0f : -1.0f;
+                        move_x = -dy * strafe;
+                        move_y = dx * strafe;
+                        player->facing_angle = atan2f(dy, dx);
+                        should_shoot = true;
                     }
+                }
+            }
+
+            /* Fallback - if still no movement but have a target, move toward it */
+            if (move_x == 0 && move_y == 0 && target_id >= 0) {
+                Entity* target = &game->entities[target_id];
+                float dx = target->x - player->x;
+                float dy = target->y - player->y;
+                float dist = sqrtf(dx * dx + dy * dy);
+                if (dist > 0.5f) {
+                    move_x = dx / dist;
+                    move_y = dy / dist;
+                } else {
+                    /* Very close to target - strafe around them */
+                    float strafe = ((game->frame / 15) % 2 == 0) ? 1.0f : -1.0f;
+                    move_x = -dy * strafe / (dist + 0.1f);
+                    move_y = dx * strafe / (dist + 0.1f);
+                }
+                player->facing_angle = atan2f(dy, dx);
+            }
+
+            /* Ultimate fallback - if still no movement, move toward threat centroid */
+            if (move_x == 0 && move_y == 0 && ai->priority_count > 0) {
+                float dx = threat_cx - player->x;
+                float dy = threat_cy - player->y;
+                float dist = sqrtf(dx * dx + dy * dy);
+                if (dist > 0.3f) {
+                    move_x = dx / dist;
+                    move_y = dy / dist;
                 }
             }
 
@@ -1105,15 +1147,60 @@ void update_player_ai_advanced(GameState* game) {
         if (player->stamina > PLAYER_MAX_STAMINA) player->stamina = PLAYER_MAX_STAMINA;
     }
 
+    /* Stuck detection - if player hasn't moved much, try to break free */
+    static float last_x = 0, last_y = 0;
+    static int stuck_frames = 0;
+
+    float moved_dist = sqrtf((player->x - last_x) * (player->x - last_x) +
+                             (player->y - last_y) * (player->y - last_y));
+
+    if (moved_dist < 0.05f && (move_x != 0 || move_y != 0)) {
+        stuck_frames++;
+        if (stuck_frames > 30) {
+            /* Stuck for 30+ frames - try random movement */
+            float angle = randf(&game->rng_state) * 2.0f * PI;
+            move_x = cosf(angle);
+            move_y = sinf(angle);
+            stuck_frames = 0;
+        }
+    } else {
+        stuck_frames = 0;
+    }
+    last_x = player->x;
+    last_y = player->y;
+
     if (move_x != 0 || move_y != 0) {
+        /* Normalize movement direction */
+        float move_len = sqrtf(move_x * move_x + move_y * move_y);
+        if (move_len > 0.001f) {
+            move_x /= move_len;
+            move_y /= move_len;
+        }
+
+        /* Try pathfinding first */
         float target_x = player->x + move_x * 10.0f;
         float target_y = player->y + move_y * 10.0f;
         float next_x, next_y;
 
         if (find_path(&game->level, player->x, player->y, target_x, target_y,
                       &next_x, &next_y)) {
-            player->vx = (next_x - player->x) * speed;
-            player->vy = (next_y - player->y) * speed;
+            float dx = next_x - player->x;
+            float dy = next_y - player->y;
+            float path_len = sqrtf(dx * dx + dy * dy);
+
+            if (path_len > 0.1f) {
+                /* Use pathfinding result */
+                player->vx = (dx / path_len) * speed;
+                player->vy = (dy / path_len) * speed;
+            } else {
+                /* Path returned same position - use direct movement */
+                player->vx = move_x * speed;
+                player->vy = move_y * speed;
+            }
+        } else {
+            /* Pathfinding failed - use direct movement */
+            player->vx = move_x * speed;
+            player->vy = move_y * speed;
         }
     } else {
         /* Apply friction using AVX */

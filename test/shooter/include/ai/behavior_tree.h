@@ -340,7 +340,7 @@ static inline void bt_avx_select_behavior_8(
         _mm256_set1_epi32(BT_NODE_ACT_RELOAD), _mm256_castps_si256(cmp));
 
     _mm256_storeu_ps(out->utility, best_util);
-    _mm256_storeu_si256((__m256i*)out->action, best_action);
+    STOREU_SI256(out->action, best_action);
 }
 
 /* ==========================================================================

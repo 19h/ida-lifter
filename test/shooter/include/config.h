@@ -23,14 +23,63 @@
 #define ALIGN32 __attribute__((aligned(32)))
 
 /* ==========================================================================
+ * FMA INTRINSIC FALLBACKS (for platforms without FMA support, e.g., Emscripten)
+ * ========================================================================== */
+
+#ifndef __FMA__
+#include <immintrin.h>
+
+/* Emulate FMA intrinsics using separate multiply and add operations */
+#ifndef _mm256_fmadd_ps
+#define _mm256_fmadd_ps(a, b, c)  _mm256_add_ps(_mm256_mul_ps(a, b), c)
+#endif
+#ifndef _mm256_fnmadd_ps
+#define _mm256_fnmadd_ps(a, b, c) _mm256_sub_ps(c, _mm256_mul_ps(a, b))
+#endif
+#ifndef _mm256_fmsub_ps
+#define _mm256_fmsub_ps(a, b, c)  _mm256_sub_ps(_mm256_mul_ps(a, b), c)
+#endif
+#ifndef _mm256_fnmsub_ps
+#define _mm256_fnmsub_ps(a, b, c) _mm256_sub_ps(_mm256_xor_ps(_mm256_mul_ps(a, b), _mm256_set1_ps(-0.0f)), c)
+#endif
+
+/* SSE FMA fallbacks */
+#ifndef _mm_fmadd_ps
+#define _mm_fmadd_ps(a, b, c)  _mm_add_ps(_mm_mul_ps(a, b), c)
+#endif
+#ifndef _mm_fmadd_ss
+#define _mm_fmadd_ss(a, b, c)  _mm_add_ss(_mm_mul_ss(a, b), c)
+#endif
+
+#endif /* __FMA__ */
+
+/* ==========================================================================
+ * EMSCRIPTEN SIMD COMPATIBILITY HELPERS
+ * ========================================================================== */
+
+#ifdef __EMSCRIPTEN__
+/* Emscripten's _mm256_storeu_si256 expects __m256i_u* type */
+#define STOREU_SI256(ptr, val) _mm256_storeu_si256((__m256i_u*)(ptr), val)
+
+/* Extract first float from __m256 - Emscripten doesn't support [0] indexing */
+static inline float mm256_extract_first_ps(__m256 v) {
+    return _mm_cvtss_f32(_mm256_castps256_ps128(v));
+}
+#define AVX_EXTRACT_F0(v) mm256_extract_first_ps(v)
+#else
+#define STOREU_SI256(ptr, val) _mm256_storeu_si256((__m256i*)(ptr), val)
+#define AVX_EXTRACT_F0(v) (v)[0]
+#endif
+
+/* ==========================================================================
  * LEVEL CONFIGURATION
  * ========================================================================== */
 
-#define LEVEL_WIDTH     128
-#define LEVEL_HEIGHT    64
+#define LEVEL_WIDTH     256
+#define LEVEL_HEIGHT    128
 #define LEVEL_SIZE      (LEVEL_WIDTH * LEVEL_HEIGHT)
 
-#define MAX_ROOMS       16
+#define MAX_ROOMS       24
 
 /* Tile types */
 #define TILE_FLOOR          0
