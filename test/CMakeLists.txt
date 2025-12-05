@@ -17,6 +17,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
+# Heavy debug info for all targets
+add_compile_options(
+    -g3                              # Maximum debug info (includes macros)
+    -gdwarf-4                        # DWARF version 4 for rich debug info
+    -fno-omit-frame-pointer          # Keep frame pointers for stack traces
+    -fno-eliminate-unused-debug-types # Keep all debug type information
+)
+# Ensure debug info is not stripped by linker
+add_link_options(-g)
+
 # AVX/AVX2/FMA flags (globally applied)
 if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     add_compile_options(-mavx -mavx2 -mfma)
@@ -215,9 +225,9 @@ add_executable(decompiler_ref
 )
 target_link_libraries(decompiler_ref m)
 
-# Apply physics-specific optimizations
+# Apply physics-specific optimizations (keep debug info with -g3)
 set_target_properties(decompiler_ref PROPERTIES
-    COMPILE_FLAGS "-O3 -ffast-math -msse4.1"
+    COMPILE_FLAGS "-O2 -ffast-math -msse4.1 -g3 -fno-omit-frame-pointer"
 )
 
 set(ALL_PHYSICS_TESTS
@@ -229,6 +239,75 @@ set(ALL_PHYSICS_TESTS
 #==============================================================================
 
 add_subdirectory(shooter)
+
+#==============================================================================
+# 32-BIT TEST BINARIES (IA-32 / i386)
+#==============================================================================
+
+# On Linux x86_64, we can cross-compile to 32-bit using -m32
+# This tests the lifter's 32-bit support (YMM0-7 only, 32-bit addressing)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    option(BUILD_32BIT_TESTS "Build 32-bit (i386) test binaries" ON)
+
+    if(BUILD_32BIT_TESTS)
+        message(STATUS "Building 32-bit (i386) test binaries")
+
+        # 32-bit compiler flags
+        # Use -march=haswell for 32-bit AVX2 support (haswell has AVX2 but not AVX-512)
+        set(M32_FLAGS -m32 -march=haswell)
+        set(M32_LINK_FLAGS -m32)
+
+        # 32-bit scalar test
+        add_executable(test_scalar_32
+            integration/test_scalar.c
+        )
+        target_compile_options(test_scalar_32 PRIVATE ${M32_FLAGS})
+        target_link_options(test_scalar_32 PRIVATE ${M32_LINK_FLAGS})
+
+        # 32-bit comprehensive AVX test (subset - without AVX-512)
+        # Note: avx_comprehensive_test.c has its own main()
+        add_executable(test_avx_32
+            integration/avx_comprehensive_test.c
+        )
+        target_compile_options(test_avx_32 PRIVATE ${M32_FLAGS})
+        target_link_options(test_avx_32 PRIVATE ${M32_LINK_FLAGS})
+        # Exclude AVX-512 tests in 32-bit mode (uses __AVX512F__ guards)
+        target_compile_definitions(test_avx_32 PRIVATE NO_AVX512=1)
+
+        # 32-bit fluid dynamics
+        add_executable(test_fluid_advect_32
+            integration/sources/test_fluid_advect.c
+        )
+        target_compile_options(test_fluid_advect_32 PRIVATE ${M32_FLAGS})
+        target_link_options(test_fluid_advect_32 PRIVATE ${M32_LINK_FLAGS})
+
+        # 32-bit physics reference (without AVX-512 nbody)
+        add_executable(decompiler_ref_32
+            physics/src/main.c
+            physics/src/vis.c
+            physics/src/waves.c
+            physics/src/particles.c
+            physics/src/fluid.c
+        )
+        target_compile_options(decompiler_ref_32 PRIVATE ${M32_FLAGS} -O2 -ffast-math -msse4.1)
+        target_link_options(decompiler_ref_32 PRIVATE ${M32_LINK_FLAGS})
+        target_link_libraries(decompiler_ref_32 m)
+        # Skip nbody.c (AVX-512) for 32-bit build
+        target_compile_definitions(decompiler_ref_32 PRIVATE NO_AVX512=1)
+
+        set(ALL_32BIT_TESTS
+            test_scalar_32
+            test_avx_32
+            test_fluid_advect_32
+            decompiler_ref_32
+        )
+
+        # Custom target for 32-bit tests
+        add_custom_target(tests_32bit
+            DEPENDS ${ALL_32BIT_TESTS}
+        )
+    endif()
+endif()
 
 #==============================================================================
 # CUSTOM TARGETS

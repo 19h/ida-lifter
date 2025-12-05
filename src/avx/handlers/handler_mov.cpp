@@ -52,13 +52,29 @@ merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
 merror_t handle_vmov(codegen_t &cdg, int data_size) {
     if (is_xmm_reg(cdg.insn.Op1)) {
         mreg_t xmm_reg = reg2mreg(cdg.insn.Op1.reg);
-        mreg_t ymm_reg = get_ymm_mreg(xmm_reg);
-        if (ymm_reg == mr_none) return MERR_INSN;
 
         AvxOpLoader l_loader(cdg, 1, cdg.insn.Op2);
         mreg_t l = l_loader.reg;
 
-        // Move value to lower part of XMM, then use m_xdu to zero-extend to YMM
+        // In 32-bit mode, don't extend to YMM (causes INTERR 50757)
+        // Just zero-extend to XMM size
+        if (!inf_is_64bit()) {
+            mreg_t tmp = cdg.mba->alloc_kreg(data_size);
+            cdg.emit(m_mov, data_size, l, 0, tmp, 0);
+
+            mop_t src(tmp, data_size);
+            mop_t dst(xmm_reg, XMM_SIZE);
+            mop_t r;
+            cdg.emit(m_xdu, &src, &r, &dst);
+
+            cdg.mba->free_kreg(tmp, data_size);
+            return MERR_OK;
+        }
+
+        // 64-bit mode: zero-extend to YMM
+        mreg_t ymm_reg = get_ymm_mreg(xmm_reg);
+        if (ymm_reg == mr_none) return MERR_INSN;
+
         mreg_t tmp = cdg.mba->alloc_kreg(data_size);
         cdg.emit(m_mov, data_size, l, 0, tmp, 0);
 

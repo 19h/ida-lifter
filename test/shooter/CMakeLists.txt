@@ -24,6 +24,16 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Warning flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic")
 
+# Heavy debug info for all targets
+add_compile_options(
+    -g3                              # Maximum debug info (includes macros)
+    -gdwarf-4                        # DWARF version 4 for rich debug info
+    -fno-omit-frame-pointer          # Keep frame pointers for stack traces
+    -fno-eliminate-unused-debug-types # Keep all debug type information
+)
+# Ensure debug info is not stripped by linker
+add_link_options(-g)
+
 # AVX/AVX2/FMA flags
 if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     add_compile_options(-mavx -mavx2 -mfma)
@@ -83,9 +93,9 @@ add_executable(shooter ${SHOOTER_SOURCES})
 # Link math library
 target_link_libraries(shooter m)
 
-# Apply optimizations
+# Apply optimizations (keep debug info with -g3)
 set_target_properties(shooter PROPERTIES
-    COMPILE_FLAGS "-O3 -ffast-math -msse4.1"
+    COMPILE_FLAGS "-O2 -ffast-math -msse4.1 -g3 -fno-omit-frame-pointer"
 )
 
 # =============================================================================

@@ -8,14 +8,20 @@ int main() {
     printf("║   AVX PHYSICS SIMULATION TESTBED - IDA Decompiler Test   ║\n");
     printf("╚══════════════════════════════════════════════════════════╝\n\n");
 
+#ifdef NO_AVX512
+    printf("Running 3 SIMD-Intensive Physics Simulations (32-bit mode)...\n");
+#else
     printf("Running 4 SIMD-Intensive Physics Simulations...\n");
+#endif
     printf("Each simulation: ~10 seconds\n\n");
     sleep_ms(2000);
 
+#ifndef NO_AVX512
     // 1. N-Body Gravitational Simulation (AVX-512)
     printf("▶ Simulation 1/4: N-Body Gravity (AVX-512)...\n");
     run_nbody_sim();
     sleep_ms(1000);
+#endif
 
     // 2. Wave Interference Pattern (AVX2)
     printf("▶ Simulation 2/4: Wave Interference (AVX2)...\n");

@@ -149,6 +149,34 @@ void AVXIntrinsic::add_argument_reg(mreg_t mreg, type_t bt) {
     add_argument_reg(mreg, tinfo_t(bt));
 }
 
+void AVXIntrinsic::add_argument_reg_with_size(mreg_t mreg, int size) {
+    // Create appropriate integer type for the given size (used for pointers)
+    type_t bt;
+    switch (size) {
+        case 1: bt = BT_INT8; break;
+        case 2: bt = BT_INT16; break;
+        case 4: bt = BT_INT32; break;
+        case 8:
+        default: bt = BT_INT64; break;
+    }
+
+    tinfo_t ti(bt);
+    mcallarg_t ca(mop_t(mreg, size));
+    ca.type = ti;
+    ca.size = size;
+
+    // Assign dummy stack location to satisfy verification
+    int align = size;
+    if (align < 8) align = 8;
+
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
+    call_info->args.add(ca);
+    call_info->solid_args++;
+}
+
 void AVXIntrinsic::add_argument_imm(uint64 value, type_t bt) {
     tinfo_t ti(bt);
     mcallarg_t ca;

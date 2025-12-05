@@ -53,6 +53,19 @@ struct ida_local AVXLifter : microcode_filter_t {
             return false;
         }
 
+        // Skip YMM operations in 32-bit mode - Hex-Rays decompiler causes INTERR 50920
+        // when we try to lift YMM instructions in 32-bit binaries. By skipping, IDA shows
+        // them as __asm blocks which preserves the operation visibility.
+        if (!inf_is_64bit()) {
+            bool has_ymm = (cdg.insn.Op1.type == o_reg && cdg.insn.Op1.dtype == dt_byte32) ||
+                           (cdg.insn.Op2.type == o_reg && cdg.insn.Op2.dtype == dt_byte32) ||
+                           (cdg.insn.Op3.type == o_reg && cdg.insn.Op3.dtype == dt_byte32) ||
+                           (cdg.insn.Op4.type == o_reg && cdg.insn.Op4.dtype == dt_byte32);
+            if (has_ymm) {
+                return false;
+            }
+        }
+
         bool m = is_compare_insn(it) || is_extract_insn(it) || is_conversion_insn(it) ||
                  is_move_insn(it) || is_scalar_move(it) || is_bitwise_insn(it) ||
                  is_math_insn(it) || is_scalar_math(it) || is_scalar_minmax(it) ||
@@ -336,7 +349,10 @@ static ssize_t idaapi hexrays_debug_callback(void *, hexrays_event_t event, va_l
 static AVXLifter *g_avx = nullptr;
 
 static bool isMicroAvx_avail() {
-    if (PH.id != PLFM_386 || !inf_is_64bit())
+    // Support both 32-bit (IA-32) and 64-bit (x86-64) binaries
+    // In 32-bit mode, only YMM0-YMM7 are available (VEX.R/X/B ignored)
+    // IDA's decoder handles this constraint - we just use the decoded register numbers
+    if (PH.id != PLFM_386)
         return false;
     return true;
 }

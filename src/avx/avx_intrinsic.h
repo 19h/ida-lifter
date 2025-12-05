@@ -36,6 +36,9 @@ struct ida_local AVXIntrinsic {
 
     void add_argument_reg(mreg_t mreg, type_t bt);
 
+    // Add argument with explicit size (for pointer arguments where type size may not match target)
+    void add_argument_reg_with_size(mreg_t mreg, int size);
+
     void add_argument_imm(uint64 value, type_t bt);
 
     // Add mask argument (__mmask8, __mmask16, __mmask32, __mmask64)
