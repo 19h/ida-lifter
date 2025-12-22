@@ -1,0 +1,20 @@
+{
+  "IDAMetadataDescriptorVersion": 1,
+  "plugin": {
+    "name": "AVX Lifter",
+    "entryPoint": "lifter",
+    "version": "1.0.0",
+    "idaVersions": ">=7.5",
+    "categories": ["decompilation"],
+    "license": "MIT",
+    "description": "Hex-Rays microcode filter plugin that lifts AVX/AVX2/AVX-512 instructions to intrinsic-style function calls in decompiled pseudocode",
+    "logoPath": "logo-wide.png",
+    "urls": {
+      "repository": "https://github.com/19h/ida-lifter"
+    },
+    "authors": [{
+      "name": "Kenan Sulayman",
+      "email": "kenan@int.mov"
+    }]
+  }
+}

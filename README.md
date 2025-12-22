@@ -1,6 +1,18 @@
-# AVX Lifter for IDA Pro
+<h1 align="center">lifter</h1>
 
-A Hex-Rays microcode filter plugin that lifts AVX/AVX2/AVX-512 instructions to Intel intrinsic-style function calls, producing cleaner decompiled output instead of `__asm` blocks.
+<img width="1536" height="581" alt="lifter" src="logo-narrow.png" />
+
+---
+
+<h5 align="center">
+lifter is a Hex-Rays microcode filter that lifts AVX/AVX2/AVX-512 instructions to Intel intrinsics.<br/>
+Where IDA shows opaque <code>__asm</code> blocks, lifter emits readable <code>_mm256_add_ps</code> calls.<br/>
+200+ instructions transformed. Zero manual annotation required.<br/>
+<br/>
+Scalar operations compile to native FP microcode for optimal decompiler output.<br/>
+FMA, gather, shuffle, broadcast—all lifted to their documented intrinsic forms.<br/>
+The SIMD becomes legible. The algorithms become obvious.
+</h5>
 
 ## Before & After
 
