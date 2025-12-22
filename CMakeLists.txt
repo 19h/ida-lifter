@@ -33,10 +33,3 @@ ida_add_plugin(lifter
     src/avx/handlers/handler_logic.cpp
     src/inline/inline_component.cpp
 )
-
-# IDA Dump tool - standalone executable for batch decompilation
-ida_add_idalib(ida_dump
-  TYPE EXECUTABLE
-  SOURCES
-    ida_dump.cpp
-)
