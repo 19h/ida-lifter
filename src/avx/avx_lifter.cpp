@@ -40,12 +40,14 @@ struct ida_local AVXLifter : microcode_filter_t {
             return true;
         }
 
-        // Skip instructions with k-register masking (EVEX encoded with opmask in Op6)
+        // Instructions with k-register masking (EVEX opmask in Op6)
         // e.g., vaddps zmm0{k1}, zmm1, zmm2
-        // k0 means no masking, only k1-k7 are active masks
-        // Our handlers don't support masking yet, let IDA handle these
+        // Allow masking only for handlers that implement masked intrinsics.
         if (has_opmask(cdg.insn)) {
-            return false;
+            bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it);
+            if (!mask_ok) {
+                return false;
+            }
         }
 
         // Skip YMM (256-bit) operations in 32-bit mode.
@@ -155,14 +157,7 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (is_scalar_minmax(it)) return handle_v_minmax_ss_sd(cdg);
 
         // packed math (+ min/max + integer add/sub + integer mul)
-        if (it == NN_vaddps || it == NN_vsubps || it == NN_vmulps || it == NN_vdivps ||
-            it == NN_vaddpd || it == NN_vsubpd || it == NN_vmulpd || it == NN_vdivpd ||
-            it == NN_vpaddb || it == NN_vpsubb || it == NN_vpaddw || it == NN_vpsubw ||
-            it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
-            it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
-            is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
-            is_avg_insn(it))
-            return handle_v_math_p(cdg);
+        if (is_packed_math_insn(it)) return handle_v_math_p(cdg);
 
         // abs
         if (is_abs_insn(it)) return handle_v_abs(cdg);

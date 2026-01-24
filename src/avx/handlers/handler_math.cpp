@@ -451,8 +451,12 @@ merror_t handle_v_fma(codegen_t &cdg) {
         check(NN_vfnmsub132sd, "sd", true, true)) { op = "fnmsub"; } else return MERR_INSN;
 
     const char *prefix = is_scalar ? "" : get_size_prefix(size);
-    qstring iname;
-    iname.cat_sprnt("_mm%s_%s_%s", prefix, op, type);
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_%s_%s", prefix, op, type);
+
+    int elem_size = is_double ? 8 : 4;
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -461,7 +465,7 @@ merror_t handle_v_fma(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         // For scalar FMA with memory operand, zero-extend the loaded scalar to XMM size
-        int elem_size = is_double ? 8 : 4;
+        // Reuse elem_size for scalar load size
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(op3_in, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
@@ -492,6 +496,13 @@ merror_t handle_v_fma(codegen_t &cdg) {
         arg2 = op3;
         arg3 = op1;
     } // 231
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(arg1, ti);
     icall.add_argument_reg(arg2, ti);

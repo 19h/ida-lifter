@@ -186,6 +186,16 @@ bool is_math_insn(uint16 it) {
            is_gather_insn(it) || is_fma_insn(it);
 }
 
+bool is_packed_math_insn(uint16 it) {
+    return it == NN_vaddps || it == NN_vsubps || it == NN_vmulps || it == NN_vdivps ||
+           it == NN_vaddpd || it == NN_vsubpd || it == NN_vmulpd || it == NN_vdivpd ||
+           it == NN_vpaddb || it == NN_vpsubb || it == NN_vpaddw || it == NN_vpsubw ||
+           it == NN_vpaddd || it == NN_vpsubd || it == NN_vpaddq || it == NN_vpsubq ||
+           it == NN_vpaddsb || it == NN_vpsubsb || it == NN_vpaddsw || it == NN_vpsubsw ||
+           is_packed_minmax_fp(it) || is_packed_minmax_int(it) || is_int_mul(it) ||
+           is_avg_insn(it);
+}
+
 bool is_broadcast_insn(uint16 it) {
     return it == NN_vbroadcastss || it == NN_vbroadcastsd || it == NN_vbroadcastf128 || it == NN_vbroadcasti128;
 }

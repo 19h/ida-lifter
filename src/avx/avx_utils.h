@@ -107,6 +107,8 @@ bool is_fma_insn(uint16 it);
 
 bool is_math_insn(uint16 it);
 
+bool is_packed_math_insn(uint16 it);
+
 bool is_broadcast_insn(uint16 it);
 
 bool is_misc_insn(uint16 it);

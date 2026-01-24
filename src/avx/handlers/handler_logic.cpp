@@ -1081,8 +1081,12 @@ merror_t handle_vfmaddsub(codegen_t &cdg) {
         return MERR_INSN;
     }
 
-    qstring iname;
-    iname.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, type);
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, type);
+
+    int elem_size = is_double ? 8 : 4;
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -1097,6 +1101,13 @@ merror_t handle_vfmaddsub(codegen_t &cdg) {
         arg1 = op2; arg2 = op1; arg3 = op3;
     } else {
         arg1 = op2; arg2 = op3; arg3 = op1;
+    }
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
     icall.add_argument_reg(arg1, ti);
