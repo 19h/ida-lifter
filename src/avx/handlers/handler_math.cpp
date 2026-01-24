@@ -74,6 +74,9 @@ merror_t handle_v_minmax_ss_sd(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src, &empty, &dst);
         r = t_mem;
@@ -462,6 +465,9 @@ merror_t handle_v_fma(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(op3_in, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t r;
         cdg.emit(m_xdu, &src, &r, &dst);
         op3 = t_mem;
@@ -678,6 +684,9 @@ merror_t handle_vrcp_rsqrt_ss(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(r_in.reg, FLOAT_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src, &empty, &dst);
         r = t_mem;
@@ -720,6 +729,9 @@ merror_t handle_vround_ss_sd(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src, &empty, &dst);
         r = t_mem;
@@ -763,6 +775,9 @@ merror_t handle_vsqrtsd(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(r_in.reg, DOUBLE_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src, &empty, &dst);
         r = t_mem;

@@ -480,6 +480,9 @@ merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src(b_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src, &empty, &dst);  // Zero-extend to XMM
         b = t_mem;
@@ -829,6 +832,9 @@ merror_t handle_vmovddup(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t src_mop(src_in.reg, DOUBLE_SIZE);  // 8 bytes loaded
         mop_t dst_mop(t_mem, XMM_SIZE);          // 16 bytes for intrinsic
+        if (XMM_SIZE > 8) {
+            dst_mop.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &src_mop, &empty, &dst_mop);  // zero-extend
         src = t_mem;
@@ -914,6 +920,9 @@ merror_t handle_vpbroadcast_d_q(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t s(src_in.reg, elem_size);
         mop_t dst_op(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst_op.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &s, &empty, &dst_op);
         src = t_mem;
@@ -1174,6 +1183,9 @@ merror_t handle_vpbroadcast_b_w(codegen_t &cdg) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
         mop_t s(src_in.reg, elem_size);
         mop_t dst_op(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst_op.set_udt();
+        }
         mop_t empty;
         cdg.emit(m_xdu, &s, &empty, &dst_op);
         src = t_mem;

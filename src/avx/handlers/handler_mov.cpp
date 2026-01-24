@@ -64,6 +64,9 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
 
             mop_t src(tmp, data_size);
             mop_t dst(xmm_reg, XMM_SIZE);
+            if (XMM_SIZE > 8) {
+                dst.set_udt();
+            }
             mop_t r;
             cdg.emit(m_xdu, &src, &r, &dst);
 
@@ -80,6 +83,9 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
 
         mop_t src(tmp, data_size);
         mop_t dst(ymm_reg, YMM_SIZE);
+        if (YMM_SIZE > 8) {
+            dst.set_udt();
+        }
         mop_t r;
         cdg.emit(m_xdu, &src, &r, &dst);
 
