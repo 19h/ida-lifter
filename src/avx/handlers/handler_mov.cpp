@@ -102,20 +102,6 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
     return MERR_OK;
 }
 
-// Helper to get intrinsic size prefix
-static const char* get_size_prefix(int size) {
-    if (size == ZMM_SIZE) return "512";
-    if (size == YMM_SIZE) return "256";
-    return "";
-}
-
-// Helper to get operand size (XMM, YMM, or ZMM)
-static int get_vector_size(const op_t &op) {
-    if (is_zmm_reg(op)) return ZMM_SIZE;
-    if (is_ymm_reg(op)) return YMM_SIZE;
-    return XMM_SIZE;
-}
-
 merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     // Determine operand sizes
     int size;
@@ -191,7 +177,7 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
 }
 
 merror_t handle_v_gather(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
     mreg_t mask = reg2mreg(cdg.insn.Op3.reg);
     const op_t &mem = cdg.insn.Op2;
@@ -225,7 +211,7 @@ merror_t handle_v_gather(codegen_t &cdg) {
     }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_mask_i32gather_%s", size == YMM_SIZE ? "256" : "", suffix);
+    iname.cat_sprnt("_mm%s_mask_i32gather_%s", get_size_prefix(size), suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti_dst = get_type_robust(size, is_int, is_double);

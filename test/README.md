@@ -248,3 +248,5 @@ Tests involving AVX-512 instructions with:
 - Compare-to-mask operations (vcmpeqps k1, ...)
 
 These fall back to IDA's default handling due to SDK limitations. See `CLAUDE.md` § "AVX-512 (ZMM) Support" for details.
+
+Hex-Rays also emits warnings like `unsupported processor register 'zmm0'` when decompiling ZMM tests. This is a decompiler limitation; the test functions should still decompile without INTERRs.

@@ -28,6 +28,20 @@ bool is_avx_reg(const op_t &op);
 
 bool is_vector_reg(const op_t &op);
 
+inline int get_vector_size(const op_t &op) {
+    if (is_zmm_reg(op)) return ZMM_SIZE;
+    if (is_ymm_reg(op)) return YMM_SIZE;
+    return XMM_SIZE;
+}
+
+inline const char *get_size_prefix(int size) {
+    if (size == ZMM_SIZE) return "512";
+    if (size == YMM_SIZE) return "256";
+    return "";
+}
+
+inline int get_vector_bits(int size) { return size * 8; }
+
 bool is_avx512_reg(const op_t &op);
 
 bool is_mask_reg(const op_t &op);

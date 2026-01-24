@@ -294,7 +294,8 @@ bool store_operand_hack(codegen_t &cdg, int n, const mop_t &mop, int flags, mins
 bool has_opmask(const insn_t &insn) {
     // Op6 holds the opmask register in EVEX-encoded instructions
     // A valid opmask is k1-k7 (k0 means no masking)
-    if (insn.Op6.type == o_kreg && insn.Op6.reg >= R_k1 && insn.Op6.reg <= R_k7)
+    if ((insn.Op6.type == o_kreg || insn.Op6.type == o_reg) &&
+        insn.Op6.reg >= R_k1 && insn.Op6.reg <= R_k7)
         return true;
     return false;
 }
@@ -307,7 +308,7 @@ bool is_zero_masking(const insn_t &insn) {
 
 // Get the opmask register number (0-7 for k0-k7)
 int get_opmask_reg(const insn_t &insn) {
-    if (insn.Op6.type == o_kreg) {
+    if (insn.Op6.type == o_kreg || insn.Op6.type == o_reg) {
         return insn.Op6.reg - R_k0;
     }
     return 0; // k0 = no masking

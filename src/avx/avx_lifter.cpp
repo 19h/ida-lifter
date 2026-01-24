@@ -42,14 +42,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // Skip instructions with k-register masking (EVEX encoded with opmask in Op6)
         // e.g., vaddps zmm0{k1}, zmm1, zmm2
+        // k0 means no masking, only k1-k7 are active masks
         // Our handlers don't support masking yet, let IDA handle these
-        if (is_mask_reg(cdg.insn.Op6)) {
-            return false;
-        }
-
-        // Skip ZMM register instructions - our handlers only support XMM/YMM
-        if (is_zmm_reg(cdg.insn.Op1) || is_zmm_reg(cdg.insn.Op2) ||
-            is_zmm_reg(cdg.insn.Op3) || is_zmm_reg(cdg.insn.Op4)) {
+        if (has_opmask(cdg.insn)) {
             return false;
         }
 

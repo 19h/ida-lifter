@@ -103,13 +103,20 @@ set(ZMM_BINARY_TESTS test_avx512_addps)
 set(ZMM_MASK_TESTS test_avx512_mask_addps)
 set(ZMM_MASKZ_TESTS test_avx512_maskz_addps)
 
+# Collect all unit test targets that actually exist
+set(ALL_UNIT_TESTS "")
+
 # Helper macro to create unit test executables
 macro(add_unit_test TEST_NAME STUB_FILE)
-    add_executable(${TEST_NAME}
-        unit/sources/${TEST_NAME}.c
-        ${STUB_DIR}/${STUB_FILE}
-    )
-    target_compile_definitions(${TEST_NAME} PRIVATE TEST_FUNC=${TEST_NAME})
+    set(TEST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/unit/sources/${TEST_NAME}.c")
+    if(EXISTS "${TEST_SRC}")
+        add_executable(${TEST_NAME}
+            ${TEST_SRC}
+            ${STUB_DIR}/${STUB_FILE}
+        )
+        target_compile_definitions(${TEST_NAME} PRIVATE TEST_FUNC=${TEST_NAME})
+        list(APPEND ALL_UNIT_TESTS ${TEST_NAME})
+    endif()
 endmacro()
 
 # Generate all unit test targets
@@ -143,32 +150,24 @@ endforeach()
 
 foreach(TEST ${ZMM_BINARY_TESTS})
     add_unit_test(${TEST} stub_zmm_binary.c)
-    target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
 endforeach()
 
 foreach(TEST ${ZMM_MASK_TESTS})
     add_unit_test(${TEST} stub_zmm_mask_binary.c)
-    target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
 endforeach()
 
 foreach(TEST ${ZMM_MASKZ_TESTS})
     add_unit_test(${TEST} stub_zmm_maskz_binary.c)
-    target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
 endforeach()
-
-# Collect all unit test targets
-set(ALL_UNIT_TESTS
-    ${PS_UNARY_TESTS}
-    ${PS_BINARY_TESTS}
-    ${PS_TERNARY_TESTS}
-    ${INT_UNARY_TESTS}
-    ${INT_BINARY_TESTS}
-    ${CVT_PS2DQ_TESTS}
-    ${CVT_DQ2PS_TESTS}
-    ${ZMM_BINARY_TESTS}
-    ${ZMM_MASK_TESTS}
-    ${ZMM_MASKZ_TESTS}
-)
 
 #==============================================================================
 # INTEGRATION TESTS - Multi-instruction complex tests
@@ -187,24 +186,38 @@ add_executable(avx_comprehensive_test
 )
 target_compile_options(avx_comprehensive_test PRIVATE ${AVX512_FLAGS})
 
+set(ALL_INTEGRATION_TESTS avx_comprehensive_test)
+
 # Fluid dynamics tests
-add_executable(test_fluid_advect integration/sources/test_fluid_advect.c)
-add_executable(test_fluid_diffuse integration/sources/test_fluid_diffuse.c)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/integration/sources/test_fluid_advect.c")
+    add_executable(test_fluid_advect integration/sources/test_fluid_advect.c)
+    list(APPEND ALL_INTEGRATION_TESTS test_fluid_advect)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/integration/sources/test_fluid_diffuse.c")
+    add_executable(test_fluid_diffuse integration/sources/test_fluid_diffuse.c)
+    list(APPEND ALL_INTEGRATION_TESTS test_fluid_diffuse)
+endif()
 
 # AVX-512 memory tests
-add_executable(test_avx512_mem_addps integration/sources/test_avx512_mem_addps.c)
-target_compile_options(test_avx512_mem_addps PRIVATE ${AVX512_FLAGS})
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/integration/sources/test_avx512_mem_addps.c")
+    add_executable(test_avx512_mem_addps integration/sources/test_avx512_mem_addps.c)
+    target_compile_options(test_avx512_mem_addps PRIVATE ${AVX512_FLAGS})
+    list(APPEND ALL_INTEGRATION_TESTS test_avx512_mem_addps)
+endif()
+
+# AVX-512 register tests
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/integration/sources/test_avx512_addps.c")
+    add_executable(test_avx512_addps_integration integration/sources/test_avx512_addps.c)
+    target_compile_options(test_avx512_addps_integration PRIVATE ${AVX512_FLAGS})
+    list(APPEND ALL_INTEGRATION_TESTS test_avx512_addps_integration)
+endif()
 
 # Test scalar operations
-add_executable(test_scalar integration/test_scalar.c)
-
-set(ALL_INTEGRATION_TESTS
-    avx_comprehensive_test
-    test_fluid_advect
-    test_fluid_diffuse
-    test_avx512_mem_addps
-    test_scalar
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/integration/test_scalar.c")
+    add_executable(test_scalar integration/test_scalar.c)
+    list(APPEND ALL_INTEGRATION_TESTS test_scalar)
+endif()
 
 #==============================================================================
 # PHYSICS TESTS - Real-world SIMD workloads

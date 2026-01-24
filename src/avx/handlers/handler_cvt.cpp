@@ -140,7 +140,7 @@ merror_t handle_vcvt_pd2dq(codegen_t &cdg, bool trunc) {
 // vcvtdq2pd xmm1, xmm2/m64  (XMM: 2 ints -> 2 doubles)
 // vcvtdq2pd ymm1, xmm2/m128 (YMM: 4 ints -> 4 doubles)
 merror_t handle_vcvtdq2pd(codegen_t &cdg) {
-    int dst_size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int dst_size = get_vector_size(cdg.insn.Op1);
     int src_size = dst_size / 2;  // Source is half the size (ints are 4 bytes, doubles are 8)
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);

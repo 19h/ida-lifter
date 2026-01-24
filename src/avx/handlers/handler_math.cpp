@@ -97,20 +97,6 @@ merror_t handle_v_minmax_ss_sd(codegen_t &cdg) {
     return MERR_OK;
 }
 
-// Helper to get size prefix for intrinsic names
-static const char* get_size_prefix(int size) {
-    if (size == ZMM_SIZE) return "512";
-    if (size == YMM_SIZE) return "256";
-    return "";
-}
-
-// Helper to get vector size from operand
-static int get_vector_size(const op_t &op) {
-    if (is_zmm_reg(op)) return ZMM_SIZE;
-    if (is_ymm_reg(op)) return YMM_SIZE;
-    return XMM_SIZE;
-}
-
 merror_t handle_v_math_p(codegen_t &cdg) {
     QASSERT(0xA0501, is_vector_reg(cdg.insn.Op1) && is_vector_reg(cdg.insn.Op2));
 
@@ -354,7 +340,7 @@ merror_t handle_v_abs(codegen_t &cdg) {
     }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_abs_%s", size == YMM_SIZE ? "256" : "", suffix);
+    iname.cat_sprnt("_mm%s_abs_%s", get_size_prefix(size), suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, true, false);
@@ -367,7 +353,7 @@ merror_t handle_v_abs(codegen_t &cdg) {
 }
 
 merror_t handle_v_sign(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -383,7 +369,7 @@ merror_t handle_v_sign(codegen_t &cdg) {
     }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_sign_%s", size == YMM_SIZE ? "256" : "", suffix);
+    iname.cat_sprnt("_mm%s_sign_%s", get_size_prefix(size), suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, true, false);
@@ -397,7 +383,7 @@ merror_t handle_v_sign(codegen_t &cdg) {
 }
 
 merror_t handle_v_fma(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t op1 = reg2mreg(cdg.insn.Op1.reg); // Dest/Src1
     mreg_t op2 = reg2mreg(cdg.insn.Op2.reg); // Src2
@@ -461,8 +447,9 @@ merror_t handle_v_fma(codegen_t &cdg) {
         check(NN_vfnmsub132ss, "ss", false, true)) { op = "fnmsub"; } else if (
         check(NN_vfnmsub132sd, "sd", true, true)) { op = "fnmsub"; } else return MERR_INSN;
 
+    const char *prefix = is_scalar ? "" : get_size_prefix(size);
     qstring iname;
-    iname.cat_sprnt("_mm%s_%s_%s", (size == YMM_SIZE && !is_scalar) ? "256" : "", op, type);
+    iname.cat_sprnt("_mm%s_%s_%s", prefix, op, type);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -532,13 +519,13 @@ merror_t handle_vsqrtss(codegen_t &cdg) {
 }
 
 merror_t handle_vsqrt_ps_pd(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vsqrtpd);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_sqrt_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+    iname.cat_sprnt("_mm%s_sqrt_%s", get_size_prefix(size), is_double ? "pd" : "ps");
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -552,9 +539,9 @@ merror_t handle_vsqrt_ps_pd(codegen_t &cdg) {
 }
 
 merror_t handle_v_hmath(codegen_t &cdg) {
-    QASSERT(0xA0504, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
+    QASSERT(0xA0504, is_vector_reg(cdg.insn.Op1) && is_vector_reg(cdg.insn.Op2));
 
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -587,7 +574,7 @@ merror_t handle_v_hmath(codegen_t &cdg) {
     }
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_%s_%s", size == YMM_SIZE ? "256" : "", op, type);
+    iname.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, type);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, is_int, is_double);
@@ -602,9 +589,9 @@ merror_t handle_v_hmath(codegen_t &cdg) {
 }
 
 merror_t handle_v_dot(codegen_t &cdg) {
-    QASSERT(0xA0505, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
+    QASSERT(0xA0505, is_vector_reg(cdg.insn.Op1) && is_vector_reg(cdg.insn.Op2));
 
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -614,7 +601,7 @@ merror_t handle_v_dot(codegen_t &cdg) {
     uint64 imm = cdg.insn.Op4.value;
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_dp_ps", size == YMM_SIZE ? "256" : "");
+    iname.cat_sprnt("_mm%s_dp_ps", get_size_prefix(size));
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, false);
@@ -630,13 +617,13 @@ merror_t handle_v_dot(codegen_t &cdg) {
 }
 
 merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *op = (cdg.insn.itype == NN_vrcpps) ? "rcp" : "rsqrt";
     qstring iname;
-    iname.cat_sprnt("_mm%s_%s_ps", size == YMM_SIZE ? "256" : "", op);
+    iname.cat_sprnt("_mm%s_%s_ps", get_size_prefix(size), op);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, false);
@@ -650,7 +637,7 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
 }
 
 merror_t handle_vround(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vroundpd);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -660,7 +647,7 @@ merror_t handle_vround(codegen_t &cdg) {
     uint64 imm = cdg.insn.Op3.value;
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_round_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+    iname.cat_sprnt("_mm%s_round_%s", get_size_prefix(size), is_double ? "pd" : "ps");
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -801,7 +788,7 @@ merror_t handle_vsqrtsd(codegen_t &cdg) {
 
 // vaddsubps/pd - alternating add/sub
 merror_t handle_vaddsubps_pd(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vaddsubpd);
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
@@ -809,7 +796,7 @@ merror_t handle_vaddsubps_pd(codegen_t &cdg) {
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname;
-    iname.cat_sprnt("_mm%s_addsub_%s", size == YMM_SIZE ? "256" : "", is_double ? "pd" : "ps");
+    iname.cat_sprnt("_mm%s_addsub_%s", get_size_prefix(size), is_double ? "pd" : "ps");
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
@@ -830,7 +817,7 @@ merror_t handle_vaddsubps_pd(codegen_t &cdg) {
 // vmpsadbw xmm1, xmm2, xmm3/m128, imm8
 // vmpsadbw ymm1, ymm2, ymm3/m256, imm8
 merror_t handle_vsad(codegen_t &cdg) {
-    int size = is_xmm_reg(cdg.insn.Op1) ? XMM_SIZE : YMM_SIZE;
+    int size = get_vector_size(cdg.insn.Op1);
     bool is_mpsadbw = (cdg.insn.itype == NN_vmpsadbw);
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
