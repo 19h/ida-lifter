@@ -34,6 +34,7 @@ __asm { vmovups ymmword ptr [rdx], ymm0 }
 - **Scalar operations** (`vaddss`, `vmulss`, etc.) use native FP microcode for clean output
 - **FMA instructions** including all 132/213/231 forms with memory operands
 - **AVX-512 register operations** (ZMM) with partial support
+- **AVX10.1/AVX10.2 masked arithmetic + FMA** (EVEX XMM/YMM/ZMM) lifted to `_mm*_mask*` intrinsics
 - **Invisible vzeroupper** - no more noise from transition instructions
 
 ## Supported Instructions
@@ -134,13 +135,13 @@ On macOS, the plugin is automatically code-signed. Without signing, IDA will han
 
 ## Known Limitations
 
-### AVX-512 EVEX Instructions
+### AVX-512/AVX10 EVEX Instructions
 - **ZMM memory operands**: Fall back to IDA's handling due to SDK limitations
-- **Masked operations** (`{k1}`, `{k1}{z}`): Not lifted, shown as `__asm`
+- **Masked operations**: arithmetic/FMA lifted; other masked ops still fall back (e.g., bitwise, permutes, masked loads/stores)
 - **Compare-to-mask** (`vcmpps k1, ymm0, ymm1`): IDA limitation, causes INTERR 50311
 
 ### Hex-Rays Limitations
-- **ZMM registers**: "Unsupported processor register 'zmm0'" is a Hex-Rays limitation, not plugin bug
+- **ZMM registers**: "Unsupported processor register 'zmm0'" is a Hex-Rays limitation, not plugin bug. Expect warnings during `idump` runs; functions still decompile.
 - **YMM/XMM aliasing**: Function signatures may show `__m128` when `__m256` is expected
 
 ### Third-Party Plugin Conflicts

@@ -103,6 +103,16 @@ set(ZMM_BINARY_TESTS test_avx512_addps)
 set(ZMM_MASK_TESTS test_avx512_mask_addps)
 set(ZMM_MASKZ_TESTS test_avx512_maskz_addps)
 
+# AVX-512 masked FMA tests
+set(ZMM_MASK_FMA_TESTS test_mask_fmadd_ps_zmm test_mask_fmaddsub_ps_zmm)
+set(ZMM_MASKZ_FMA_TESTS test_maskz_fmadd_ps_zmm test_maskz_fmaddsub_ps_zmm)
+
+# AVX-512VL/AVX10 masked tests (EVEX on YMM/XMM)
+set(YMM_MASK_TESTS test_mask_add_ps_ymm)
+set(YMM_MASKZ_TESTS test_maskz_add_ps_ymm)
+set(YMM_MASK_FMA_TESTS test_mask_fmadd_ps_ymm)
+set(YMM_MASKZ_FMA_TESTS test_maskz_fmadd_ps_ymm)
+
 # Collect all unit test targets that actually exist
 set(ALL_UNIT_TESTS "")
 
@@ -166,6 +176,51 @@ foreach(TEST ${ZMM_MASKZ_TESTS})
     add_unit_test(${TEST} stub_zmm_maskz_binary.c)
     if(TARGET ${TEST})
         target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_FMA_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_fma.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASKZ_FMA_TESTS})
+    add_unit_test(${TEST} stub_zmm_maskz_fma.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+# AVX-512VL tests (EVEX on 128/256-bit) - requires -mavx512vl
+set(AVX512VL_FLAGS ${AVX512_FLAGS} -mavx512vl)
+
+foreach(TEST ${YMM_MASK_TESTS})
+    add_unit_test(${TEST} stub_ymm_mask_binary.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512VL_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${YMM_MASKZ_TESTS})
+    add_unit_test(${TEST} stub_ymm_maskz_binary.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512VL_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${YMM_MASK_FMA_TESTS})
+    add_unit_test(${TEST} stub_ymm_mask_fma.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512VL_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${YMM_MASKZ_FMA_TESTS})
+    add_unit_test(${TEST} stub_ymm_maskz_fma.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512VL_FLAGS})
     endif()
 endforeach()
 
