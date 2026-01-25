@@ -87,7 +87,9 @@ bool is_bitwise_insn(uint16 it) {
     return it == NN_vpor || it == NN_vorps || it == NN_vorpd ||
            it == NN_vpand || it == NN_vandps || it == NN_vandpd ||
            it == NN_vpxor || it == NN_vxorps || it == NN_vxorpd ||
-           it == NN_vandnps || it == NN_vandnpd || it == NN_vpandn;
+           it == NN_vandnps || it == NN_vandnpd || it == NN_vpandn ||
+           it == NN_vpandd || it == NN_vpandq || it == NN_vpandnd || it == NN_vpandnq ||
+           it == NN_vpord || it == NN_vporq || it == NN_vpxord || it == NN_vpxorq;
 }
 
 bool is_scalar_minmax(uint16 it) {
@@ -155,6 +157,10 @@ bool is_perm_insn(uint16 it) {
     return it == NN_vpermq || it == NN_vpermd || it == NN_vpermilps || it == NN_vpermilpd;
 }
 
+bool is_permutex_insn(uint16 it) {
+    return it == NN_vpermb || it == NN_vpermw;
+}
+
 bool is_align_insn(uint16 it) {
     return it == NN_vpalignr;
 }
@@ -169,6 +175,10 @@ bool is_fma_insn(uint16 it) {
            (it >= NN_vfmsub132ps && it <= NN_vfmsub231sd) ||
            (it >= NN_vfnmadd132ps && it <= NN_vfnmadd231sd) ||
            (it >= NN_vfnmsub132ps && it <= NN_vfnmsub231sd);
+}
+
+bool is_ternary_logic_insn(uint16 it) {
+    return it == NN_vpternlogd || it == NN_vpternlogq;
 }
 
 bool is_math_insn(uint16 it) {

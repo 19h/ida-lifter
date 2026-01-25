@@ -108,10 +108,14 @@ set(ZMM_MASK_FMA_TESTS test_mask_fmadd_ps_zmm test_mask_fmaddsub_ps_zmm)
 set(ZMM_MASKZ_FMA_TESTS test_maskz_fmadd_ps_zmm test_maskz_fmaddsub_ps_zmm)
 
 # AVX-512VL/AVX10 masked tests (EVEX on YMM/XMM)
-set(YMM_MASK_TESTS test_mask_add_ps_ymm)
+set(YMM_MASK_TESTS test_mask_add_ps_ymm test_mask_and_ps_ymm)
 set(YMM_MASKZ_TESTS test_maskz_add_ps_ymm)
 set(YMM_MASK_FMA_TESTS test_mask_fmadd_ps_ymm)
 set(YMM_MASKZ_FMA_TESTS test_maskz_fmadd_ps_ymm)
+
+# AVX-512 masked integer logic/permute tests
+set(ZMM_MASK_INT_TESTS test_mask_permutexvar_epi8_zmm)
+set(ZMM_MASK_TERNARY_TESTS test_mask_ternarylogic_epi32_zmm)
 
 # Collect all unit test targets that actually exist
 set(ALL_UNIT_TESTS "")
@@ -188,6 +192,21 @@ endforeach()
 
 foreach(TEST ${ZMM_MASKZ_FMA_TESTS})
     add_unit_test(${TEST} stub_zmm_maskz_fma.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_INT_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_int_binary.c)
+    if(TARGET ${TEST})
+        set(AVX512VBMI_FLAGS ${AVX512_FLAGS} -mavx512vbmi)
+        target_compile_options(${TEST} PRIVATE ${AVX512VBMI_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_TERNARY_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_int_ternary.c)
     if(TARGET ${TEST})
         target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
     endif()

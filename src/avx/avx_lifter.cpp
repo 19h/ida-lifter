@@ -44,7 +44,12 @@ struct ida_local AVXLifter : microcode_filter_t {
         // e.g., vaddps zmm0{k1}, zmm1, zmm2
         // Allow masking only for handlers that implement masked intrinsics.
         if (has_opmask(cdg.insn)) {
-            bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it);
+            bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it) ||
+                           is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
+                           is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
+                           is_align_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
+                           is_packed_int_compare_insn(it) || is_move_insn(it) ||
+                           is_addsub_insn(it) || is_ternary_logic_insn(it);
             if (!mask_ok) {
                 return false;
             }
@@ -84,6 +89,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
+                 is_permutex_insn(it) || is_ternary_logic_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -246,6 +252,12 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // permute 128-bit lanes
         if (is_vperm2_insn(it)) return handle_vperm2f128_i128(cdg);
+
+        // permute bytes/words (VBMI)
+        if (is_permutex_insn(it)) return handle_v_permutex(cdg);
+
+        // ternary logic
+        if (is_ternary_logic_insn(it)) return handle_v_ternary_logic(cdg);
 
         // horizontal subtract (including saturated)
         if (is_phsub_insn(it)) return handle_vphsub_sw(cdg);

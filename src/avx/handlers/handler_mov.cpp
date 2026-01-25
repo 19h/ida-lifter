@@ -117,6 +117,126 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
                    cdg.insn.itype == NN_vmovdqu32 || cdg.insn.itype == NN_vmovdqu64);
     bool is_double = (cdg.insn.itype == NN_vmovapd || cdg.insn.itype == NN_vmovupd);
 
+    int elem_size = is_double ? 8 : 4;
+    if (is_int) {
+        switch (cdg.insn.itype) {
+            case NN_vmovdqa64:
+            case NN_vmovdqu64:
+                elem_size = 8;
+                break;
+            case NN_vmovdqu8:
+                elem_size = 1;
+                break;
+            case NN_vmovdqu16:
+                elem_size = 2;
+                break;
+            case NN_vmovdqa32:
+            case NN_vmovdqu32:
+            default:
+                elem_size = 4;
+                break;
+        }
+    }
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    if (mask.has_mask) {
+        // Masked move handling using load/store/mov intrinsics
+        int vec_size = is_vector_reg(cdg.insn.Op1) ? get_vector_size(cdg.insn.Op1)
+                                                   : get_vector_size(cdg.insn.Op2);
+        tinfo_t vec_type = get_type_robust(vec_size, is_int, is_double);
+        tinfo_t ptr_type;
+        ptr_type.create_ptr(tinfo_t(BT_VOID));
+        const char *prefix = get_size_prefix(vec_size);
+        const char *mask_suffix = mask.is_zeroing ? "maskz" : "mask";
+
+        auto build_mask_name = [&](const char *base) {
+            qstring name;
+            name.cat_sprnt(base, prefix, mask_suffix, elem_size * 8);
+            return name;
+        };
+
+        if (is_vector_reg(cdg.insn.Op1)) {
+            // DEST is register
+            size = get_vector_size(cdg.insn.Op1);
+            mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+
+            if (is_vector_reg(cdg.insn.Op2)) {
+                // Register-to-register masked move
+                mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+                qstring iname;
+                if (is_int) {
+                    iname = build_mask_name("_mm%s_%s_mov_epi%d");
+                } else {
+                    const char *pf = is_double ? "pd" : "ps";
+                    iname.cat_sprnt("_mm%s_%s_mov_%s", prefix, mask_suffix, pf);
+                }
+                AVXIntrinsic icall(&cdg, iname.c_str());
+                if (!mask.is_zeroing) {
+                    icall.add_argument_reg(dst, vec_type);
+                }
+                icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+                icall.add_argument_reg(src, vec_type);
+                icall.set_return_reg(dst, vec_type);
+                icall.emit();
+            } else {
+                // Memory-to-register masked load
+                QASSERT(0xA0310, is_mem_op(cdg.insn.Op2));
+                mreg_t addr = cdg.load_effective_address(1);
+                if (addr == mr_none) {
+                    return MERR_INSN;
+                }
+                qstring iname;
+                if (is_int) {
+                    iname = build_mask_name("_mm%s_%s_loadu_epi%d");
+                } else {
+                    const char *pf = is_double ? "pd" : "ps";
+                    iname.cat_sprnt("_mm%s_%s_loadu_%s", prefix, mask_suffix, pf);
+                }
+                AVXIntrinsic icall(&cdg, iname.c_str());
+                if (!mask.is_zeroing) {
+                    icall.add_argument_reg(dst, vec_type);
+                }
+                icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+                icall.add_argument_reg(addr, ptr_type);
+                icall.set_return_reg(dst, vec_type);
+                icall.emit();
+            }
+
+            if (size == XMM_SIZE) clear_upper(cdg, dst);
+            return MERR_OK;
+        }
+
+        // STORE case: masked store to memory
+        if (!is_mem_op(cdg.insn.Op1) || !is_vector_reg(cdg.insn.Op2)) {
+            return MERR_INSN;
+        }
+
+        size = get_vector_size(cdg.insn.Op2);
+        mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+        mreg_t addr = cdg.load_effective_address(0);
+        if (addr == mr_none) {
+            return MERR_INSN;
+        }
+
+        qstring iname;
+        if (is_int) {
+            iname.cat_sprnt("_mm%s_mask_storeu_epi%d", prefix, elem_size * 8);
+        } else {
+            const char *pf = is_double ? "pd" : "ps";
+            iname.cat_sprnt("_mm%s_mask_storeu_%s", prefix, pf);
+        }
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        icall.add_argument_reg(addr, ptr_type);
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+        icall.add_argument_reg(src, vec_type);
+        icall.emit_void();
+        return MERR_OK;
+    }
+
     if (is_vector_reg(cdg.insn.Op1)) {
         // LOAD case: vmovaps reg, mem/reg
         size = get_vector_size(cdg.insn.Op1);

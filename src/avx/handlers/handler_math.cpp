@@ -827,11 +827,25 @@ merror_t handle_vaddsubps_pd(codegen_t &cdg) {
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    qstring iname;
-    iname.cat_sprnt("_mm%s_addsub_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    int elem_size = is_double ? 8 : 4;
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_addsub_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
