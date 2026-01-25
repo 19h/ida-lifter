@@ -499,11 +499,8 @@ merror_t handle_v_gather(codegen_t &cdg) {
     const op_t &mem = cdg.insn.Op2;
     mreg_t base = reg2mreg(mem.reg);
 
-    static int xmm0_idx = -1;
-    if (xmm0_idx == -1) xmm0_idx = str2reg("xmm0");
-
-    // sib_index requires insn and op
-    mreg_t index_vec = reg2mreg(xmm0_idx + sib_index(cdg.insn, mem));
+    // sib_index returns the full VSIB register number
+    mreg_t index_vec = reg2mreg(sib_index(cdg.insn, mem));
 
     // sib_scale requires only op_t
     int scale = 1 << sib_scale(mem);
@@ -513,58 +510,70 @@ merror_t handle_v_gather(codegen_t &cdg) {
     bool is_int = false;
     bool is_double = false;
     bool use_i64_index = false;
-    int mask_elem_size = 4;
+    int data_elem_size = 4;
     switch (cdg.insn.itype) {
         case NN_vgatherdps: suffix = "ps";
-            mask_elem_size = 4;
+            data_elem_size = 4;
             break;
         case NN_vgatherdpd: suffix = "pd";
             is_double = true;
-            mask_elem_size = 4;
+            data_elem_size = 8;
             break;
         case NN_vgatherqps: suffix = "ps";
             use_i64_index = true;
-            mask_elem_size = 8;
+            data_elem_size = 4;
             break;
         case NN_vgatherqpd: suffix = "pd";
             is_double = true;
             use_i64_index = true;
-            mask_elem_size = 8;
+            data_elem_size = 8;
             break;
         case NN_vpgatherdd: suffix = "epi32";
             is_int = true;
-            mask_elem_size = 4;
+            data_elem_size = 4;
             break;
         case NN_vpgatherdq: suffix = "epi64";
             is_int = true;
-            mask_elem_size = 4;
+            data_elem_size = 8;
             break;
         case NN_vpgatherqd: suffix = "epi32";
             is_int = true;
             use_i64_index = true;
-            mask_elem_size = 8;
+            data_elem_size = 4;
             break;
         case NN_vpgatherqq: suffix = "epi64";
             is_int = true;
             use_i64_index = true;
-            mask_elem_size = 8;
+            data_elem_size = 8;
             break;
     }
 
     bool has_kmask = has_opmask(cdg.insn);
     MaskInfo mask_info;
     if (has_kmask) {
-        mask_info = MaskInfo::from_insn(cdg.insn, mask_elem_size);
+        mask_info = MaskInfo::from_insn(cdg.insn, data_elem_size);
+        mask_info.num_elements = size / data_elem_size;
         load_mask_operand(cdg, mask_info);
     }
 
+    int prefix_size = size;
+    if (use_i64_index && data_elem_size == 4) {
+        prefix_size = size * 2;
+        if (prefix_size > ZMM_SIZE) prefix_size = ZMM_SIZE;
+    }
+
     qstring iname;
-    iname.cat_sprnt("_mm%s_mask_i%sgather_%s", get_size_prefix(size),
+    iname.cat_sprnt("_mm%s_mask_i%sgather_%s", get_size_prefix(prefix_size),
                     use_i64_index ? "64" : "32", suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti_dst = get_type_robust(size, is_int, is_double);
-    tinfo_t ti_idx = get_type_robust(size, true, false);
+    int index_size = size;
+    if (use_i64_index && data_elem_size == 4) {
+        index_size = size * 2;
+        if (index_size > ZMM_SIZE) index_size = ZMM_SIZE;
+    }
+    tinfo_t ti_idx = get_type_robust(index_size, true, false);
 
     mreg_t arg_base = base;
     mreg_t t_base = mr_none;
@@ -647,10 +656,7 @@ merror_t handle_v_scatter(codegen_t &cdg) {
     mreg_t src = reg2mreg(cdg.insn.Op2.reg);
     mreg_t base = reg2mreg(mem.reg);
 
-    static int xmm0_idx = -1;
-    if (xmm0_idx == -1) xmm0_idx = str2reg("xmm0");
-
-    mreg_t index_vec = reg2mreg(xmm0_idx + sib_index(cdg.insn, mem));
+    mreg_t index_vec = reg2mreg(sib_index(cdg.insn, mem));
     int scale = 1 << sib_scale(mem);
     ea_t disp = mem.addr;
 
@@ -659,57 +665,48 @@ merror_t handle_v_scatter(codegen_t &cdg) {
     bool is_double = false;
     bool use_i64_index = false;
     int elem_size = 4;
-    int mask_elem_size = 4;
 
     switch (cdg.insn.itype) {
         case NN_vscatterdps: suffix = "ps";
             elem_size = 4;
-            mask_elem_size = 4;
             break;
         case NN_vscatterdpd: suffix = "pd";
             is_double = true;
             elem_size = 8;
-            mask_elem_size = 4;
             break;
         case NN_vscatterqps: suffix = "ps";
             use_i64_index = true;
             elem_size = 4;
-            mask_elem_size = 8;
             break;
         case NN_vscatterqpd: suffix = "pd";
             is_double = true;
             use_i64_index = true;
             elem_size = 8;
-            mask_elem_size = 8;
             break;
         case NN_vpscatterdd: suffix = "epi32";
             is_int = true;
             elem_size = 4;
-            mask_elem_size = 4;
             break;
         case NN_vpscatterdq: suffix = "epi64";
             is_int = true;
             elem_size = 8;
-            mask_elem_size = 4;
             break;
         case NN_vpscatterqd: suffix = "epi32";
             is_int = true;
             use_i64_index = true;
             elem_size = 4;
-            mask_elem_size = 8;
             break;
         case NN_vpscatterqq: suffix = "epi64";
             is_int = true;
             use_i64_index = true;
             elem_size = 8;
-            mask_elem_size = 8;
             break;
         default:
             return MERR_INSN;
     }
 
-    MaskInfo mask = MaskInfo::from_insn(cdg.insn, mask_elem_size);
-    mask.num_elements = size / mask_elem_size;
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    mask.num_elements = size / elem_size;
     if (!mask.has_mask) {
         return MERR_INSN;
     }
@@ -727,13 +724,25 @@ merror_t handle_v_scatter(codegen_t &cdg) {
         arg_base = t_base;
     }
 
+    int prefix_size = size;
+    if (use_i64_index && elem_size == 4) {
+        prefix_size = size * 2;
+        if (prefix_size > ZMM_SIZE) prefix_size = ZMM_SIZE;
+    }
+
+
     qstring iname;
-    iname.cat_sprnt("_mm%s_mask_i%sscatter_%s", get_size_prefix(size),
+    iname.cat_sprnt("_mm%s_mask_i%sscatter_%s", get_size_prefix(prefix_size),
                     use_i64_index ? "64" : "32", suffix);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti_val = get_type_robust(size, is_int, is_double);
-    tinfo_t ti_idx = get_type_robust(size, true, false);
+    int index_size = size;
+    if (use_i64_index && elem_size == 4) {
+        index_size = size * 2;
+        if (index_size > ZMM_SIZE) index_size = ZMM_SIZE;
+    }
+    tinfo_t ti_idx = get_type_robust(index_size, true, false);
     tinfo_t ptr_type;
     ptr_type.create_ptr(tinfo_t(BT_VOID));
 
