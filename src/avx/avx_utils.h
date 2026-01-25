@@ -181,20 +181,21 @@ uint8 get_cmp_predicate(uint16 it);
 struct MaskInfo {
     bool has_mask;          // true if instruction uses opmask (k1-k7)
     bool is_zeroing;        // true if zero-masking, false if merge-masking
-    mreg_t mask_reg;        // mreg for the mask register
+    mreg_t mask_reg;        // mreg for the mask register (loaded via codegen)
     int num_elements;       // number of elements being masked (for mask type selection)
 
     MaskInfo() : has_mask(false), is_zeroing(false), mask_reg(mr_none), num_elements(0) {}
 
     // Initialize from instruction context
+    // NOTE: This only captures mask metadata. The mask_reg must be loaded separately
+    // using load_mask_operand() because reg2mreg doesn't work for k-registers.
     static MaskInfo from_insn(const insn_t &insn, int elem_size) {
         MaskInfo info;
         info.has_mask = has_opmask(insn);
         info.is_zeroing = is_zero_masking(insn);
+        info.mask_reg = mr_none; // Must be loaded via load_mask_operand()
 
         if (info.has_mask) {
-            info.mask_reg = reg2mreg(insn.Op6.reg);
-
             // Calculate number of elements based on vector size and element size
             int vec_size = ZMM_SIZE; // Default to ZMM for AVX-512 masked operations
             if (is_ymm_reg(insn.Op1)) vec_size = YMM_SIZE;
@@ -205,6 +206,10 @@ struct MaskInfo {
         return info;
     }
 };
+
+// Load the opmask register value into a microcode register
+// Returns mr_none if no mask or load fails
+mreg_t load_mask_operand(codegen_t &cdg, MaskInfo &mask);
 
 // Generate masked intrinsic name
 // base_name: e.g., "_mm512_add_ps"

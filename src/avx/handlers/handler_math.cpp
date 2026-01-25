@@ -295,6 +295,9 @@ merror_t handle_v_math_p(codegen_t &cdg) {
 
     // Check for AVX-512 masking
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
 
     // Build base intrinsic name
     qstring base_name;
@@ -314,7 +317,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             // Merge-masking: first arg is src (original dest value)
             icall.add_argument_reg(d, ti);
         }
-        // Add mask argument
+        // Add mask argument (may be negative for k-reg number encoding)
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
@@ -456,6 +459,11 @@ merror_t handle_v_fma(codegen_t &cdg) {
 
     int elem_size = is_double ? 8 : 4;
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+    DEBUG_LOG("%a: handle_v_fma: has_mask=%d, is_zeroing=%d, mask_reg=%d, num_elements=%d",
+              cdg.insn.ea, mask.has_mask, mask.is_zeroing, mask.mask_reg, mask.num_elements);
     qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);
 
     AVXIntrinsic icall(&cdg, iname.c_str());

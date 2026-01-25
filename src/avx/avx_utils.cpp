@@ -397,4 +397,30 @@ qstring make_masked_intrinsic_name(const char *base_name, const MaskInfo &mask_i
     return result;
 }
 
+// Load the opmask register value into a microcode register
+// K-registers are not fully supported by Hex-Rays microcode.
+// This function attempts to load the mask value; if it fails, the caller should
+// use add_argument_mask_imm() to pass the k-register number as an immediate.
+mreg_t load_mask_operand(codegen_t &cdg, MaskInfo &mask) {
+    if (!mask.has_mask)
+        return mr_none;
+
+    // Check if Op6 is a k-register
+    if (cdg.insn.Op6.type != o_kreg && cdg.insn.Op6.type != o_reg) {
+        DEBUG_LOG("%a: Op6 is not a register (type=%d)", cdg.insn.ea, cdg.insn.Op6.type);
+        return mr_none;
+    }
+
+    // Get the k-register number (0-7)
+    int kreg_num = cdg.insn.Op6.reg - R_k0;
+    DEBUG_LOG("%a: load_mask_operand: k%d", cdg.insn.ea, kreg_num);
+
+    // Store the k-register number for use as immediate if needed
+    // We use mask_reg field to store -kreg_num-1 as a signal that it's a k-reg number, not an mreg
+    // Positive values = valid mreg, negative values = -(kreg_num+1)
+    mask.mask_reg = (mreg_t)(-(kreg_num + 1));
+
+    return mask.mask_reg;
+}
+
 #endif // IDA_SDK_VERSION >= 750

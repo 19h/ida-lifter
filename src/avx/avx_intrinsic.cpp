@@ -220,7 +220,21 @@ void AVXIntrinsic::add_argument_mask(mreg_t mreg, int num_elements) {
     }
 
     tinfo_t ti(bt);
-    mcallarg_t ca(mop_t(mreg, size));
+    mcallarg_t ca;
+
+    // Check if mreg is actually a k-register number encoded as negative value
+    // load_mask_operand() encodes k-reg number N as -(N+1)
+    if (mreg < 0) {
+        // It's a k-register number, pass as immediate
+        int kreg_num = -(mreg + 1);
+        // Use a symbolic value: 0xK0, 0xK1, etc. for better readability
+        // Actually just pass the register number - it will show as a constant
+        ca.make_number((uint64)kreg_num, size);
+    } else {
+        // It's a valid mreg
+        ca = mcallarg_t(mop_t(mreg, size));
+    }
+
     ca.type = ti;
     ca.size = size;
 

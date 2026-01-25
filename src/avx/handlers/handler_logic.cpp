@@ -1086,6 +1086,9 @@ merror_t handle_vfmaddsub(codegen_t &cdg) {
 
     int elem_size = is_double ? 8 : 4;
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
     qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);
 
     AVXIntrinsic icall(&cdg, iname.c_str());
