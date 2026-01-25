@@ -161,6 +161,11 @@ bool is_permutex_insn(uint16 it) {
     return it == NN_vpermb || it == NN_vpermw;
 }
 
+bool is_permutex2_insn(uint16 it) {
+    return it == NN_vpermt2b || it == NN_vpermt2w || it == NN_vpermt2d ||
+           it == NN_vpermt2q || it == NN_vpermt2ps || it == NN_vpermt2pd;
+}
+
 bool is_align_insn(uint16 it) {
     return it == NN_vpalignr;
 }
@@ -168,6 +173,14 @@ bool is_align_insn(uint16 it) {
 bool is_gather_insn(uint16 it) {
     return it == NN_vgatherdps || it == NN_vgatherdpd ||
            it == NN_vpgatherdd || it == NN_vpgatherdq;
+}
+
+bool is_compress_insn(uint16 it) {
+    return it == NN_vcompressps || it == NN_vcompresspd;
+}
+
+bool is_expand_insn(uint16 it) {
+    return it == NN_vexpandps || it == NN_vexpandpd;
 }
 
 bool is_fma_insn(uint16 it) {
@@ -179,6 +192,10 @@ bool is_fma_insn(uint16 it) {
 
 bool is_ternary_logic_insn(uint16 it) {
     return it == NN_vpternlogd || it == NN_vpternlogq;
+}
+
+bool is_conflict_insn(uint16 it) {
+    return it == NN_vpconflictd || it == NN_vpconflictq;
 }
 
 bool is_math_insn(uint16 it) {

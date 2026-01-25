@@ -302,6 +302,92 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_compress(codegen_t &cdg) {
+    bool is_double = (cdg.insn.itype == NN_vcompresspd);
+    int elem_size = is_double ? 8 : 4;
+
+    // vcompressps/pd: mem, reg (masked store)
+    if (!is_mem_op(cdg.insn.Op1) || !is_vector_reg(cdg.insn.Op2)) {
+        return MERR_INSN;
+    }
+
+    int size = get_vector_size(cdg.insn.Op2);
+    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (!mask.has_mask) {
+        return MERR_INSN;
+    }
+    load_mask_operand(cdg, mask);
+
+    mreg_t addr = cdg.load_effective_address(0);
+    if (addr == mr_none) {
+        return MERR_INSN;
+    }
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_mask_compressstoreu_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vec_type = get_type_robust(size, false, is_double);
+    tinfo_t ptr_type;
+    ptr_type.create_ptr(tinfo_t(BT_VOID));
+
+    icall.add_argument_reg(addr, ptr_type);
+    icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    icall.add_argument_reg(src, vec_type);
+    icall.emit_void();
+
+    return MERR_OK;
+}
+
+merror_t handle_v_expand(codegen_t &cdg) {
+    bool is_double = (cdg.insn.itype == NN_vexpandpd);
+    int elem_size = is_double ? 8 : 4;
+
+    // vexpandps/pd: reg, mem (masked load)
+    if (!is_vector_reg(cdg.insn.Op1) || !is_mem_op(cdg.insn.Op2)) {
+        return MERR_INSN;
+    }
+
+    int size = get_vector_size(cdg.insn.Op1);
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (!mask.has_mask) {
+        return MERR_INSN;
+    }
+    load_mask_operand(cdg, mask);
+
+    mreg_t addr = cdg.load_effective_address(1);
+    if (addr == mr_none) {
+        return MERR_INSN;
+    }
+
+    qstring iname;
+    if (mask.is_zeroing) {
+        iname.cat_sprnt("_mm%s_maskz_expandloadu_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    } else {
+        iname.cat_sprnt("_mm%s_mask_expandloadu_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    }
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vec_type = get_type_robust(size, false, is_double);
+    tinfo_t ptr_type;
+    ptr_type.create_ptr(tinfo_t(BT_VOID));
+
+    if (!mask.is_zeroing) {
+        icall.add_argument_reg(dst, vec_type);
+    }
+    icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    icall.add_argument_reg(addr, ptr_type);
+    icall.set_return_reg(dst, vec_type);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, dst);
+    return MERR_OK;
+}
+
 merror_t handle_v_gather(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t dst = reg2mreg(cdg.insn.Op1.reg);

@@ -116,6 +116,13 @@ set(YMM_MASKZ_FMA_TESTS test_maskz_fmadd_ps_ymm)
 # AVX-512 masked integer logic/permute tests
 set(ZMM_MASK_INT_TESTS test_mask_permutexvar_epi8_zmm)
 set(ZMM_MASK_TERNARY_TESTS test_mask_ternarylogic_epi32_zmm)
+set(ZMM_MASK_PERM2_TESTS test_mask_permutex2var_epi32_zmm)
+set(ZMM_MASK_CONFLICT_TESTS test_mask_conflict_epi32_zmm)
+
+# AVX-512 masked expand/compress tests
+set(ZMM_MASK_EXPAND_TESTS test_mask_expandload_ps_zmm)
+set(ZMM_MASKZ_EXPAND_TESTS test_maskz_expandload_ps_zmm)
+set(ZMM_MASK_COMPRESS_TESTS test_mask_compressstore_ps_zmm)
 
 # Collect all unit test targets that actually exist
 set(ALL_UNIT_TESTS "")
@@ -207,6 +214,42 @@ endforeach()
 
 foreach(TEST ${ZMM_MASK_TERNARY_TESTS})
     add_unit_test(${TEST} stub_zmm_mask_int_ternary.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_PERM2_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_int_permutex2.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_CONFLICT_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_int_unary.c)
+    if(TARGET ${TEST})
+        set(AVX512CD_FLAGS ${AVX512_FLAGS} -mavx512cd)
+        target_compile_options(${TEST} PRIVATE ${AVX512CD_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_EXPAND_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_expand_ps.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASKZ_EXPAND_TESTS})
+    add_unit_test(${TEST} stub_zmm_maskz_expand_ps.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_COMPRESS_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_compress_ps.c)
     if(TARGET ${TEST})
         target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
     endif()

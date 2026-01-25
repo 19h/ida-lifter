@@ -47,9 +47,10 @@ struct ida_local AVXLifter : microcode_filter_t {
             bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it) ||
                            is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
                            is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
-                           is_align_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
-                           is_packed_int_compare_insn(it) || is_move_insn(it) ||
-                           is_addsub_insn(it) || is_ternary_logic_insn(it);
+                           is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
+                           is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
+                           is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
+                           is_addsub_insn(it) || is_ternary_logic_insn(it) || is_conflict_insn(it);
             if (!mask_ok) {
                 return false;
             }
@@ -89,7 +90,8 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
-                 is_permutex_insn(it) || is_ternary_logic_insn(it) ||
+                 is_permutex_insn(it) || is_permutex2_insn(it) || is_ternary_logic_insn(it) ||
+                 is_compress_insn(it) || is_expand_insn(it) || is_conflict_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -147,6 +149,10 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu ||
             it == NN_vmovapd || it == NN_vmovupd)
             return handle_v_mov_ps_dq(cdg);
+
+        // compress/expand (masked load/store)
+        if (is_compress_insn(it)) return handle_v_compress(cdg);
+        if (is_expand_insn(it)) return handle_v_expand(cdg);
 
         // bitwise (now full 128/256-bit via intrinsics)
         if (is_bitwise_insn(it)) return handle_v_bitwise(cdg);
@@ -256,8 +262,14 @@ struct ida_local AVXLifter : microcode_filter_t {
         // permute bytes/words (VBMI)
         if (is_permutex_insn(it)) return handle_v_permutex(cdg);
 
+        // permute from two tables
+        if (is_permutex2_insn(it)) return handle_v_permutex2(cdg);
+
         // ternary logic
         if (is_ternary_logic_insn(it)) return handle_v_ternary_logic(cdg);
+
+        // conflict detection
+        if (is_conflict_insn(it)) return handle_v_conflict(cdg);
 
         // horizontal subtract (including saturated)
         if (is_phsub_insn(it)) return handle_vphsub_sw(cdg);

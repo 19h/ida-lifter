@@ -39,6 +39,10 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg);
 
 merror_t handle_v_gather(codegen_t &cdg);
 
+merror_t handle_v_compress(codegen_t &cdg);
+
+merror_t handle_v_expand(codegen_t &cdg);
+
 // Math
 merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size);
 
@@ -53,6 +57,8 @@ merror_t handle_v_sign(codegen_t &cdg);
 merror_t handle_v_fma(codegen_t &cdg);
 
 merror_t handle_v_ternary_logic(codegen_t &cdg);
+
+merror_t handle_v_conflict(codegen_t &cdg);
 
 merror_t handle_vsqrtss(codegen_t &cdg);
 
@@ -78,6 +84,8 @@ merror_t handle_v_shuffle_int(codegen_t &cdg);
 merror_t handle_v_perm_int(codegen_t &cdg);
 
 merror_t handle_v_permutex(codegen_t &cdg);
+
+merror_t handle_v_permutex2(codegen_t &cdg);
 
 merror_t handle_v_align(codegen_t &cdg);
 

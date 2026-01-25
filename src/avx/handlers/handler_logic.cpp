@@ -580,6 +580,85 @@ merror_t handle_v_permutex(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_permutex2(codegen_t &cdg) {
+    int size = get_vector_size(cdg.insn.Op1);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t a = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
+    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+
+    const char *suffix = nullptr;
+    bool is_int = false;
+    bool is_double = false;
+    int elem_size = 4;
+
+    switch (cdg.insn.itype) {
+        case NN_vpermt2b: suffix = "epi8";
+            is_int = true;
+            elem_size = 1;
+            break;
+        case NN_vpermt2w: suffix = "epi16";
+            is_int = true;
+            elem_size = 2;
+            break;
+        case NN_vpermt2d: suffix = "epi32";
+            is_int = true;
+            elem_size = 4;
+            break;
+        case NN_vpermt2q: suffix = "epi64";
+            is_int = true;
+            elem_size = 8;
+            break;
+        case NN_vpermt2ps: suffix = "ps";
+            elem_size = 4;
+            break;
+        case NN_vpermt2pd: suffix = "pd";
+            is_double = true;
+            elem_size = 8;
+            break;
+        default: return MERR_INSN;
+    }
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_permutex2var_%s", get_size_prefix(size), suffix);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti_table = get_type_robust(size, is_int, is_double);
+    tinfo_t ti_idx = get_type_robust(size, true, false);
+
+    if (mask.has_mask) {
+        if (mask.is_zeroing) {
+            // maskz: k, a, idx, b
+            icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+            icall.add_argument_reg(a, ti_table);
+            icall.add_argument_reg(idx, ti_idx);
+            icall.add_argument_reg(b, ti_table);
+        } else {
+            // mask: a, k, idx, b
+            icall.add_argument_reg(a, ti_table);
+            icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+            icall.add_argument_reg(idx, ti_idx);
+            icall.add_argument_reg(b, ti_table);
+        }
+    } else {
+        icall.add_argument_reg(a, ti_table);
+        icall.add_argument_reg(idx, ti_idx);
+        icall.add_argument_reg(b, ti_table);
+    }
+
+    icall.set_return_reg(d, ti_table);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_v_ternary_logic(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -614,6 +693,41 @@ merror_t handle_v_ternary_logic(codegen_t &cdg) {
     icall.add_argument_reg(b, ti);
     icall.add_argument_reg(c, ti);
     icall.add_argument_imm(cdg.insn.Op4.value, BT_INT8);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_v_conflict(codegen_t &cdg) {
+    int size = get_vector_size(cdg.insn.Op1);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    bool is_qword = (cdg.insn.itype == NN_vpconflictq);
+    int elem_size = is_qword ? 8 : 4;
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_conflict_epi%d", get_size_prefix(size), elem_size * 8);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+
+    icall.add_argument_reg(src, ti);
     icall.set_return_reg(d, ti);
     icall.emit();
 

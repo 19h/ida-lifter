@@ -101,13 +101,21 @@ bool is_perm_insn(uint16 it);
 
 bool is_permutex_insn(uint16 it);
 
+bool is_permutex2_insn(uint16 it);
+
 bool is_align_insn(uint16 it);
 
 bool is_gather_insn(uint16 it);
 
+bool is_compress_insn(uint16 it);
+
+bool is_expand_insn(uint16 it);
+
 bool is_fma_insn(uint16 it);
 
 bool is_ternary_logic_insn(uint16 it);
+
+bool is_conflict_insn(uint16 it);
 
 bool is_math_insn(uint16 it);
 
