@@ -158,4 +158,79 @@ merror_t handle_vcvtdq2pd(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vcvt_ps2udq(codegen_t &cdg, bool trunc) {
+    int op_size = get_op_size(cdg.insn);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname = trunc
+                        ? make_intrinsic_name("_mm%s_cvttps_epu32", op_size)
+                        : make_intrinsic_name("_mm%s_cvtps_epu32", op_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+
+    icall.add_argument_reg(r, get_type_robust(op_size, false));
+    icall.set_return_reg(d, get_type_robust(op_size, true));
+    icall.emit();
+
+    if (op_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_pd2udq(codegen_t &cdg, bool trunc) {
+    int src_size = get_dtype_size(cdg.insn.Op2.dtype);
+    if (src_size != XMM_SIZE && src_size != YMM_SIZE && src_size != ZMM_SIZE) {
+        src_size = get_vector_size(cdg.insn.Op2);
+    }
+
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname = trunc
+                        ? make_intrinsic_name("_mm%s_cvttpd_epu32", src_size)
+                        : make_intrinsic_name("_mm%s_cvtpd_epu32", src_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+
+    icall.add_argument_reg(r, get_type_robust(src_size, false, true));
+    icall.set_return_reg(d, get_type_robust(dst_size, true));
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_udq2ps(codegen_t &cdg) {
+    int op_size = get_op_size(cdg.insn);
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname = make_intrinsic_name("_mm%s_cvtepu32_ps", op_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+
+    icall.add_argument_reg(r, get_type_robust(op_size, true));
+    icall.set_return_reg(d, get_type_robust(op_size, false));
+    icall.emit();
+
+    if (op_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_udq2pd(codegen_t &cdg) {
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    int src_size = dst_size / 2;
+
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    qstring iname = make_intrinsic_name("_mm%s_cvtepu32_pd", dst_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+
+    icall.add_argument_reg(r, get_type_robust(src_size, true));
+    icall.set_return_reg(d, get_type_robust(dst_size, false, true));
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 #endif // IDA_SDK_VERSION >= 750

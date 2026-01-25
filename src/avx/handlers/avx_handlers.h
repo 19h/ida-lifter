@@ -27,6 +27,14 @@ merror_t handle_vcvt_pd2dq(codegen_t &cdg, bool trunc);
 
 merror_t handle_vcvtdq2pd(codegen_t &cdg);
 
+merror_t handle_vcvt_ps2udq(codegen_t &cdg, bool trunc);
+
+merror_t handle_vcvt_pd2udq(codegen_t &cdg, bool trunc);
+
+merror_t handle_vcvt_udq2ps(codegen_t &cdg);
+
+merror_t handle_vcvt_udq2pd(codegen_t &cdg);
+
 // SAD (Sum of Absolute Differences)
 merror_t handle_vsad(codegen_t &cdg);
 
@@ -74,12 +82,28 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg);
 
 merror_t handle_vround(codegen_t &cdg);
 
+merror_t handle_v_getexp(codegen_t &cdg);
+
+merror_t handle_v_getmant(codegen_t &cdg);
+
+merror_t handle_v_fixupimm(codegen_t &cdg);
+
+merror_t handle_v_scalef(codegen_t &cdg);
+
+merror_t handle_v_range(codegen_t &cdg);
+
+merror_t handle_v_reduce(codegen_t &cdg);
+
 // Logic & Misc
 merror_t handle_v_bitwise(codegen_t &cdg);
 
 merror_t handle_v_shift(codegen_t &cdg);
 
 merror_t handle_v_var_shift(codegen_t &cdg);
+
+merror_t handle_v_rotate(codegen_t &cdg);
+
+merror_t handle_v_var_rotate(codegen_t &cdg);
 
 merror_t handle_v_shuffle_int(codegen_t &cdg);
 
@@ -167,6 +191,9 @@ merror_t handle_vmovmsk(codegen_t &cdg);
 
 // Non-temporal store
 merror_t handle_vmovnt(codegen_t &cdg);
+
+// Mask to vector
+merror_t handle_v_mask_to_vec(codegen_t &cdg);
 
 // Broadcast byte/word
 merror_t handle_vpbroadcast_b_w(codegen_t &cdg);

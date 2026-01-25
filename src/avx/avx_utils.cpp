@@ -66,7 +66,9 @@ bool is_conversion_insn(uint16 it) {
     return it == NN_vcvttss2si || it == NN_vcvtdq2ps || it == NN_vcvtsi2ss || it == NN_vcvtps2pd ||
            it == NN_vcvtss2sd || it == NN_vcvttsd2si || it == NN_vcvtsd2si || it == NN_vcvtpd2ps ||
            it == NN_vcvttpd2dq || it == NN_vcvtpd2dq || it == NN_vcvttps2dq || it == NN_vcvtps2dq ||
-           it == NN_vcvtsi2sd || it == NN_vcvtsd2ss || it == NN_vcvtdq2pd;
+           it == NN_vcvtsi2sd || it == NN_vcvtsd2ss || it == NN_vcvtdq2pd ||
+           it == NN_vcvtps2udq || it == NN_vcvttps2udq || it == NN_vcvtudq2ps ||
+           it == NN_vcvtudq2pd || it == NN_vcvtpd2udq || it == NN_vcvttpd2udq;
 }
 
 bool is_sad_insn(uint16 it) {
@@ -116,12 +118,14 @@ bool is_packed_minmax_fp(uint16 it) {
 bool is_packed_minmax_int(uint16 it) {
     return it == NN_vpminsb || it == NN_vpminsw || it == NN_vpminsd ||
            it == NN_vpminub || it == NN_vpminuw || it == NN_vpminud ||
+           it == NN_vpminsq || it == NN_vpminuq ||
            it == NN_vpmaxsb || it == NN_vpmaxsw || it == NN_vpmaxsd ||
-           it == NN_vpmaxub || it == NN_vpmaxuw || it == NN_vpmaxud;
+           it == NN_vpmaxub || it == NN_vpmaxuw || it == NN_vpmaxud ||
+           it == NN_vpmaxsq || it == NN_vpmaxuq;
 }
 
 bool is_int_mul(uint16 it) {
-    return it == NN_vpmullw || it == NN_vpmulld || it == NN_vpmulhw || it == NN_vpmulhuw ||
+    return it == NN_vpmullw || it == NN_vpmulld || it == NN_vpmullq || it == NN_vpmulhw || it == NN_vpmulhuw ||
            it == NN_vpmuldq || it == NN_vpmuludq || it == NN_vpmaddwd || it == NN_vpmaddubsw;
 }
 
@@ -130,7 +134,7 @@ bool is_avg_insn(uint16 it) {
 }
 
 bool is_abs_insn(uint16 it) {
-    return it == NN_vpabsb || it == NN_vpabsw || it == NN_vpabsd;
+    return it == NN_vpabsb || it == NN_vpabsw || it == NN_vpabsd || it == NN_vpabsq;
 }
 
 bool is_sign_insn(uint16 it) {
@@ -140,13 +144,21 @@ bool is_sign_insn(uint16 it) {
 bool is_shift_insn(uint16 it) {
     return it == NN_vpsllw || it == NN_vpslld || it == NN_vpsllq ||
            it == NN_vpsrlw || it == NN_vpsrld || it == NN_vpsrlq ||
-           it == NN_vpsraw || it == NN_vpsrad;
+           it == NN_vpsraw || it == NN_vpsrad || it == NN_vpsraq;
 }
 
 bool is_var_shift_insn(uint16 it) {
     return it == NN_vpsllvd || it == NN_vpsllvq ||
            it == NN_vpsrlvd || it == NN_vpsrlvq ||
-           it == NN_vpsravd;
+           it == NN_vpsravd || it == NN_vpsravq;
+}
+
+bool is_rotate_insn(uint16 it) {
+    return it == NN_vprold || it == NN_vprord || it == NN_vprolq || it == NN_vprorq;
+}
+
+bool is_var_rotate_insn(uint16 it) {
+    return it == NN_vprolvd || it == NN_vprorvd || it == NN_vprolvq || it == NN_vprorvq;
 }
 
 bool is_shuffle_insn(uint16 it) {
@@ -167,7 +179,7 @@ bool is_permutex2_insn(uint16 it) {
 }
 
 bool is_align_insn(uint16 it) {
-    return it == NN_vpalignr;
+    return it == NN_vpalignr || it == NN_valignd || it == NN_valignq;
 }
 
 bool is_gather_insn(uint16 it) {
@@ -248,7 +260,10 @@ bool is_misc_insn(uint16 it) {
 
 bool is_extract_insert_insn(uint16 it) {
     return it == NN_vextractf128 || it == NN_vinsertf128 ||
-           it == NN_vextracti128 || it == NN_vinserti128;
+           it == NN_vextracti128 || it == NN_vinserti128 ||
+           it == NN_vextracti32x4 || it == NN_vextracti32x8 ||
+           it == NN_vextracti64x4 || it == NN_vinserti32x4 ||
+           it == NN_vinserti32x8 || it == NN_vinserti64x4;
 }
 
 bool is_movdup_insn(uint16 it) {
@@ -299,7 +314,9 @@ bool is_dot_product(uint16 it) {
 }
 
 bool is_approx_insn(uint16 it) {
-    return it == NN_vrcpps || it == NN_vrsqrtps;
+    return it == NN_vrcpps || it == NN_vrsqrtps ||
+           it == NN_vrcp14ps || it == NN_vrsqrt14ps ||
+           it == NN_vrcp14pd || it == NN_vrsqrt14pd;
 }
 
 bool is_scalar_approx_insn(uint16 it) {
@@ -307,11 +324,36 @@ bool is_scalar_approx_insn(uint16 it) {
 }
 
 bool is_round_insn(uint16 it) {
-    return it == NN_vroundps || it == NN_vroundpd;
+    return it == NN_vroundps || it == NN_vroundpd ||
+           it == NN_vrndscaleps || it == NN_vrndscalepd;
 }
 
 bool is_scalar_round_insn(uint16 it) {
     return it == NN_vroundss || it == NN_vroundsd;
+}
+
+bool is_getexp_insn(uint16 it) {
+    return it == NN_vgetexpps || it == NN_vgetexppd;
+}
+
+bool is_getmant_insn(uint16 it) {
+    return it == NN_vgetmantps || it == NN_vgetmantpd;
+}
+
+bool is_fixupimm_insn(uint16 it) {
+    return it == NN_vfixupimmps || it == NN_vfixupimmpd;
+}
+
+bool is_scalef_insn(uint16 it) {
+    return it == NN_vscalefps || it == NN_vscalefpd;
+}
+
+bool is_range_insn(uint16 it) {
+    return it == NN_vrangeps || it == NN_vrangepd;
+}
+
+bool is_reduce_insn(uint16 it) {
+    return it == NN_vreduceps || it == NN_vreducepd;
 }
 
 bool is_addsub_insn(uint16 it) {
@@ -349,7 +391,11 @@ bool is_movmsk_insn(uint16 it) {
 }
 
 bool is_movnt_insn(uint16 it) {
-    return it == NN_vmovntps || it == NN_vmovntpd || it == NN_vmovntdq;
+    return it == NN_vmovntps || it == NN_vmovntpd || it == NN_vmovntdq || it == NN_vmovntdqa;
+}
+
+bool is_mask_to_vec_insn(uint16 it) {
+    return it == NN_vpmovm2b || it == NN_vpmovm2w || it == NN_vpmovm2d || it == NN_vpmovm2q;
 }
 
 bool is_vpbroadcast_b_w(uint16 it) {

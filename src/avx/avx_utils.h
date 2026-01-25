@@ -95,6 +95,10 @@ bool is_shift_insn(uint16 it);
 
 bool is_var_shift_insn(uint16 it);
 
+bool is_rotate_insn(uint16 it);
+
+bool is_var_rotate_insn(uint16 it);
+
 bool is_shuffle_insn(uint16 it);
 
 bool is_perm_insn(uint16 it);
@@ -147,6 +151,18 @@ bool is_round_insn(uint16 it);
 
 bool is_scalar_round_insn(uint16 it);
 
+bool is_getexp_insn(uint16 it);
+
+bool is_getmant_insn(uint16 it);
+
+bool is_fixupimm_insn(uint16 it);
+
+bool is_scalef_insn(uint16 it);
+
+bool is_range_insn(uint16 it);
+
+bool is_reduce_insn(uint16 it);
+
 bool is_addsub_insn(uint16 it);
 
 bool is_vpbroadcast_d_q(uint16 it);
@@ -170,6 +186,8 @@ bool is_fmaddsub_insn(uint16 it);
 bool is_movmsk_insn(uint16 it);
 
 bool is_movnt_insn(uint16 it);
+
+bool is_mask_to_vec_insn(uint16 it);
 
 bool is_vpbroadcast_b_w(uint16 it);
 

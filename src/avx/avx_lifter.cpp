@@ -46,11 +46,16 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (has_opmask(cdg.insn)) {
             bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it) ||
                            is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
+                           is_rotate_insn(it) || is_var_rotate_insn(it) ||
                            is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
                            is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
                            is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
                            is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
-                           is_scatter_insn(it) || is_addsub_insn(it) ||
+                           is_gather_insn(it) || is_scatter_insn(it) || is_addsub_insn(it) ||
+                           is_approx_insn(it) || is_round_insn(it) ||
+                           is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
+                           is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
+                           is_mask_to_vec_insn(it) ||
                            is_ternary_logic_insn(it) || is_conflict_insn(it);
             if (!mask_ok) {
                 return false;
@@ -93,7 +98,10 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
                  is_permutex_insn(it) || is_permutex2_insn(it) || is_ternary_logic_insn(it) ||
                  is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
-                 is_conflict_insn(it) ||
+                 is_rotate_insn(it) || is_var_rotate_insn(it) ||
+                 is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
+                 is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
+                 is_mask_to_vec_insn(it) || is_conflict_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -139,6 +147,12 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vcvttpd2dq) return handle_vcvt_pd2dq(cdg, true);
         if (it == NN_vcvtpd2dq) return handle_vcvt_pd2dq(cdg, false);
         if (it == NN_vcvtdq2pd) return handle_vcvtdq2pd(cdg);
+        if (it == NN_vcvtps2udq) return handle_vcvt_ps2udq(cdg, false);
+        if (it == NN_vcvttps2udq) return handle_vcvt_ps2udq(cdg, true);
+        if (it == NN_vcvtpd2udq) return handle_vcvt_pd2udq(cdg, false);
+        if (it == NN_vcvttpd2udq) return handle_vcvt_pd2udq(cdg, true);
+        if (it == NN_vcvtudq2ps) return handle_vcvt_udq2ps(cdg);
+        if (it == NN_vcvtudq2pd) return handle_vcvt_udq2pd(cdg);
 
         // SAD (sum of absolute differences)
         if (is_sad_insn(it)) return handle_vsad(cdg);
@@ -149,7 +163,9 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vmovss) return handle_vmov_ss_sd(cdg, FLOAT_SIZE);
         if (it == NN_vmovsd) return handle_vmov_ss_sd(cdg, DOUBLE_SIZE);
         if (it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu ||
-            it == NN_vmovapd || it == NN_vmovupd)
+            it == NN_vmovapd || it == NN_vmovupd ||
+            it == NN_vmovdqa32 || it == NN_vmovdqa64 ||
+            it == NN_vmovdqu8 || it == NN_vmovdqu16 || it == NN_vmovdqu32 || it == NN_vmovdqu64)
             return handle_v_mov_ps_dq(cdg);
 
         // compress/expand (masked load/store)
@@ -185,6 +201,8 @@ struct ida_local AVXLifter : microcode_filter_t {
         // shifts
         if (is_shift_insn(it)) return handle_v_shift(cdg);
         if (is_var_shift_insn(it)) return handle_v_var_shift(cdg);
+        if (is_rotate_insn(it)) return handle_v_rotate(cdg);
+        if (is_var_rotate_insn(it)) return handle_v_var_rotate(cdg);
 
         // shuffles, perms, align
         if (is_shuffle_insn(it)) return handle_v_shuffle_int(cdg);
@@ -208,6 +226,14 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // rounding
         if (is_round_insn(it)) return handle_vround(cdg);
+
+        // getexp/getmant/fixupimm/scalef/range/reduce
+        if (is_getexp_insn(it)) return handle_v_getexp(cdg);
+        if (is_getmant_insn(it)) return handle_v_getmant(cdg);
+        if (is_fixupimm_insn(it)) return handle_v_fixupimm(cdg);
+        if (is_scalef_insn(it)) return handle_v_scalef(cdg);
+        if (is_range_insn(it)) return handle_v_range(cdg);
+        if (is_reduce_insn(it)) return handle_v_reduce(cdg);
 
         // broadcasts
         if (it == NN_vbroadcastss || it == NN_vbroadcastsd) return handle_vbroadcast_ss_sd(cdg);
@@ -235,8 +261,12 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vzeroupper) return handle_vzeroupper_nop(cdg);
 
         // extract/insert
-        if (it == NN_vextractf128 || it == NN_vextracti128) return handle_vextractf128(cdg);
-        if (it == NN_vinsertf128 || it == NN_vinserti128) return handle_vinsertf128(cdg);
+        if (it == NN_vextractf128 || it == NN_vextracti128 ||
+            it == NN_vextracti32x4 || it == NN_vextracti32x8 || it == NN_vextracti64x4)
+            return handle_vextractf128(cdg);
+        if (it == NN_vinsertf128 || it == NN_vinserti128 ||
+            it == NN_vinserti32x4 || it == NN_vinserti32x8 || it == NN_vinserti64x4)
+            return handle_vinsertf128(cdg);
 
         // movdup
         if (it == NN_vmovshdup) return handle_vmovshdup(cdg);
@@ -290,6 +320,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // non-temporal store
         if (is_movnt_insn(it)) return handle_vmovnt(cdg);
+
+        // mask to vector
+        if (is_mask_to_vec_insn(it)) return handle_v_mask_to_vec(cdg);
 
         // broadcast byte/word
         if (is_vpbroadcast_b_w(it)) return handle_vpbroadcast_b_w(cdg);
