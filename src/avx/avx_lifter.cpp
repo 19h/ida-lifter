@@ -50,7 +50,8 @@ struct ida_local AVXLifter : microcode_filter_t {
                            is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
                            is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
                            is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
-                           is_addsub_insn(it) || is_ternary_logic_insn(it) || is_conflict_insn(it);
+                           is_scatter_insn(it) || is_addsub_insn(it) ||
+                           is_ternary_logic_insn(it) || is_conflict_insn(it);
             if (!mask_ok) {
                 return false;
             }
@@ -91,7 +92,8 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
                  is_permutex_insn(it) || is_permutex2_insn(it) || is_ternary_logic_insn(it) ||
-                 is_compress_insn(it) || is_expand_insn(it) || is_conflict_insn(it) ||
+                 is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
+                 is_conflict_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -191,6 +193,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // gather
         if (is_gather_insn(it)) return handle_v_gather(cdg);
+
+        // scatter
+        if (is_scatter_insn(it)) return handle_v_scatter(cdg);
 
         // horizontal math
         if (is_horizontal_math(it)) return handle_v_hmath(cdg);

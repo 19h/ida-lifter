@@ -172,15 +172,28 @@ bool is_align_insn(uint16 it) {
 
 bool is_gather_insn(uint16 it) {
     return it == NN_vgatherdps || it == NN_vgatherdpd ||
-           it == NN_vpgatherdd || it == NN_vpgatherdq;
+           it == NN_vgatherqps || it == NN_vgatherqpd ||
+           it == NN_vpgatherdd || it == NN_vpgatherdq ||
+           it == NN_vpgatherqd || it == NN_vpgatherqq;
+}
+
+bool is_scatter_insn(uint16 it) {
+    return it == NN_vscatterdps || it == NN_vscatterdpd ||
+           it == NN_vscatterqps || it == NN_vscatterqpd ||
+           it == NN_vpscatterdd || it == NN_vpscatterdq ||
+           it == NN_vpscatterqd || it == NN_vpscatterqq;
 }
 
 bool is_compress_insn(uint16 it) {
-    return it == NN_vcompressps || it == NN_vcompresspd;
+    return it == NN_vcompressps || it == NN_vcompresspd ||
+           it == NN_vpcompressd || it == NN_vpcompressq ||
+           it == NN_vpcompressb || it == NN_vpcompressw;
 }
 
 bool is_expand_insn(uint16 it) {
-    return it == NN_vexpandps || it == NN_vexpandpd;
+    return it == NN_vexpandps || it == NN_vexpandpd ||
+           it == NN_vpexpandd || it == NN_vpexpandq ||
+           it == NN_vpexpandb || it == NN_vpexpandw;
 }
 
 bool is_fma_insn(uint16 it) {

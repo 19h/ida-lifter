@@ -124,6 +124,15 @@ set(ZMM_MASK_EXPAND_TESTS test_mask_expandload_ps_zmm)
 set(ZMM_MASKZ_EXPAND_TESTS test_maskz_expandload_ps_zmm)
 set(ZMM_MASK_COMPRESS_TESTS test_mask_compressstore_ps_zmm)
 
+# AVX-512 masked gather/scatter tests
+set(ZMM_MASK_GATHER_TESTS test_mask_i32gather_ps_zmm)
+set(ZMM_MASK_SCATTER_TESTS test_mask_i32scatter_ps_zmm)
+
+# AVX-512 masked integer expand/compress tests
+set(ZMM_MASK_COMPRESS_INT_TESTS test_mask_compress_epi32_zmm test_mask_compressstore_epi32_zmm)
+set(ZMM_MASK_EXPAND_INT_TESTS test_mask_expandload_epi32_zmm)
+set(ZMM_MASKZ_EXPAND_INT_TESTS test_maskz_expand_epi32_zmm)
+
 # Collect all unit test targets that actually exist
 set(ALL_UNIT_TESTS "")
 
@@ -250,6 +259,45 @@ endforeach()
 
 foreach(TEST ${ZMM_MASK_COMPRESS_TESTS})
     add_unit_test(${TEST} stub_zmm_mask_compress_ps.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_GATHER_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_gather_ps.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_SCATTER_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_scatter_ps.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_COMPRESS_INT_TESTS})
+    if(${TEST} STREQUAL "test_mask_compressstore_epi32_zmm")
+        add_unit_test(${TEST} stub_zmm_mask_compressstore_epi32.c)
+    else()
+        add_unit_test(${TEST} stub_zmm_mask_compress_epi32.c)
+    endif()
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASK_EXPAND_INT_TESTS})
+    add_unit_test(${TEST} stub_zmm_mask_expandload_epi32.c)
+    if(TARGET ${TEST})
+        target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
+    endif()
+endforeach()
+
+foreach(TEST ${ZMM_MASKZ_EXPAND_INT_TESTS})
+    add_unit_test(${TEST} stub_zmm_maskz_expand_epi32.c)
     if(TARGET ${TEST})
         target_compile_options(${TEST} PRIVATE ${AVX512_FLAGS})
     endif()

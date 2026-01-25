@@ -39,6 +39,8 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg);
 
 merror_t handle_v_gather(codegen_t &cdg);
 
+merror_t handle_v_scatter(codegen_t &cdg);
+
 merror_t handle_v_compress(codegen_t &cdg);
 
 merror_t handle_v_expand(codegen_t &cdg);

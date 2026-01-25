@@ -107,6 +107,8 @@ bool is_align_insn(uint16 it);
 
 bool is_gather_insn(uint16 it);
 
+bool is_scatter_insn(uint16 it);
+
 bool is_compress_insn(uint16 it);
 
 bool is_expand_insn(uint16 it);
