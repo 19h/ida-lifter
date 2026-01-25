@@ -454,37 +454,65 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
     }
 
     if (cdg.insn.itype == NN_vpermq) {
-        // vpermq ymm1, ymm2/m256, imm8
+        // vpermq ymm/zmm, ymm/zmm, imm8
+        // vpermq ymm/zmm, ymm/zmm, ymm/zmm (permutexvar_epi64)
         AvxOpLoader s(cdg, 1, cdg.insn.Op2);
-        QASSERT(0xA0606, cdg.insn.Op3.type == o_imm);
 
-        qstring base_name;
-        base_name.cat_sprnt("_mm%s_permute4x64_epi64", get_size_prefix(size));
-        qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
-        AVXIntrinsic icall(&cdg, iname.c_str());
-        tinfo_t ti = get_type_robust(YMM_SIZE, true, false);
-        if (mask.has_mask) {
-            if (!mask.is_zeroing) {
-                icall.add_argument_reg(d, ti);
-            }
-            icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+        if (size != YMM_SIZE && size != ZMM_SIZE) {
+            return MERR_INSN;
         }
-        icall.add_argument_reg(s, ti);
-        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
-        icall.set_return_reg(d, ti);
-        icall.emit();
+
+        tinfo_t ti = get_type_robust(size, true, false);
+
+        if (cdg.insn.Op3.type == o_imm) {
+            qstring base_name;
+            base_name.cat_sprnt("_mm%s_permutex_epi64", get_size_prefix(size));
+            qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            if (mask.has_mask) {
+                if (!mask.is_zeroing) {
+                    icall.add_argument_reg(d, ti);
+                }
+                icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+            }
+            icall.add_argument_reg(s, ti);
+            icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+            icall.set_return_reg(d, ti);
+            icall.emit();
+        } else {
+            // Variable permute: _mm512_permutexvar_epi64(idx, a)
+            AvxOpLoader ctrl(cdg, 2, cdg.insn.Op3);
+            qstring base_name;
+            base_name.cat_sprnt("_mm%s_permutexvar_epi64", get_size_prefix(size));
+            qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
+            AVXIntrinsic icall(&cdg, iname.c_str());
+            if (mask.has_mask) {
+                if (!mask.is_zeroing) {
+                    icall.add_argument_reg(d, ti);
+                }
+                icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+            }
+            icall.add_argument_reg(ctrl, ti);
+            icall.add_argument_reg(s, ti);
+            icall.set_return_reg(d, ti);
+            icall.emit();
+        }
     } else if (cdg.insn.itype == NN_vpermd) {
-        // vpermd ymm1, ymm2, ymm3/m256
-        // _mm256_permutevar8x32_epi32(src, idx)
+        // vpermd ymm/zmm, ymm/zmm, ymm/zmm
+        // _mm256/_mm512_permutexvar_epi32(src, idx)
         // Instruction: vpermd dest, idx, src
         mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
         AvxOpLoader src(cdg, 2, cdg.insn.Op3);
 
+        if (size != YMM_SIZE && size != ZMM_SIZE) {
+            return MERR_INSN;
+        }
+
         qstring base_name;
-        base_name.cat_sprnt("_mm%s_permutevar8x32_epi32", get_size_prefix(size));
+        base_name.cat_sprnt("_mm%s_permutexvar_epi32", get_size_prefix(size));
         qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
         AVXIntrinsic icall(&cdg, iname.c_str());
-        tinfo_t ti = get_type_robust(YMM_SIZE, true, false);
+        tinfo_t ti = get_type_robust(size, true, false);
         if (mask.has_mask) {
             if (!mask.is_zeroing) {
                 icall.add_argument_reg(d, ti);
