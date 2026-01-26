@@ -45,17 +45,24 @@ struct ida_local AVXLifter : microcode_filter_t {
         // Allow masking only for handlers that implement masked intrinsics.
         if (has_opmask(cdg.insn)) {
             bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it) ||
+                           is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
+                           is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
+                           is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
+                           is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
                            is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
+                           is_shift_double_insn(it) || is_multishift_insn(it) ||
                            is_rotate_insn(it) || is_var_rotate_insn(it) ||
                            is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
                            is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
                            is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
+                           is_scalar_math(it) || is_scalar_minmax(it) || is_scalar_move(it) ||
                            is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
                            is_gather_insn(it) || is_scatter_insn(it) || is_addsub_insn(it) ||
                            is_approx_insn(it) || is_round_insn(it) ||
                            is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
                            is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
-                           is_mask_to_vec_insn(it) ||
+                           is_mask_to_vec_insn(it) || is_popcnt_insn(it) || is_lzcnt_insn(it) ||
+                           is_gfni_insn(it) || is_fp16_move_insn(it) ||
                            is_ternary_logic_insn(it) || is_conflict_insn(it);
             if (!mask_ok) {
                 return false;
@@ -99,9 +106,16 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_permutex_insn(it) || is_permutex2_insn(it) || is_ternary_logic_insn(it) ||
                  is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
                  is_rotate_insn(it) || is_var_rotate_insn(it) ||
+                 is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
+                 is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
+                 is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
+                 is_shift_double_insn(it) || is_multishift_insn(it) ||
                  is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
                  is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
                  is_mask_to_vec_insn(it) || is_conflict_insn(it) ||
+                 is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
+                 is_popcnt_insn(it) || is_lzcnt_insn(it) || is_gfni_insn(it) ||
+                 is_pclmul_insn(it) || is_aes_insn(it) || is_fp16_move_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -162,6 +176,8 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vmovq) return handle_vmov(cdg, QWORD_SIZE);
         if (it == NN_vmovss) return handle_vmov_ss_sd(cdg, FLOAT_SIZE);
         if (it == NN_vmovsd) return handle_vmov_ss_sd(cdg, DOUBLE_SIZE);
+        if (it == NN_vmovsh) return handle_vmov_sh(cdg);
+        if (it == NN_vmovw) return handle_vmovw(cdg);
         if (it == NN_vmovaps || it == NN_vmovups || it == NN_vmovdqa || it == NN_vmovdqu ||
             it == NN_vmovapd || it == NN_vmovupd ||
             it == NN_vmovdqa32 || it == NN_vmovdqa64 ||
@@ -175,6 +191,19 @@ struct ida_local AVXLifter : microcode_filter_t {
         // bitwise (now full 128/256-bit via intrinsics)
         if (is_bitwise_insn(it)) return handle_v_bitwise(cdg);
 
+        // popcount/lzcnt
+        if (is_popcnt_insn(it)) return handle_v_popcnt(cdg);
+        if (is_lzcnt_insn(it)) return handle_v_lzcnt(cdg);
+
+        // GFNI
+        if (is_gfni_insn(it)) return handle_v_gfni(cdg);
+
+        // carryless multiply
+        if (is_pclmul_insn(it)) return handle_v_pclmul(cdg);
+
+        // AES
+        if (is_aes_insn(it)) return handle_v_aes(cdg);
+
         // scalar math (add/sub/mul/div)
         if (it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss)
             return handle_v_math_ss_sd(
@@ -182,12 +211,14 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vaddsd || it == NN_vsubsd || it == NN_vmulsd || it == NN_vdivsd)
             return handle_v_math_ss_sd(
                 cdg, DOUBLE_SIZE);
+        if (is_fp16_scalar_math_insn(it)) return handle_v_math_sh(cdg);
 
         // scalar min/max
         if (is_scalar_minmax(it)) return handle_v_minmax_ss_sd(cdg);
 
         // packed math (+ min/max + integer add/sub + integer mul)
         if (is_packed_math_insn(it)) return handle_v_math_p(cdg);
+        if (is_fp16_packed_math_insn(it)) return handle_v_math_ph(cdg);
 
         // abs
         if (is_abs_insn(it)) return handle_v_abs(cdg);
@@ -197,12 +228,23 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // fma
         if (is_fma_insn(it)) return handle_v_fma(cdg);
+        if (is_fp16_fma_insn(it)) return handle_v_fma_ph(cdg);
+
+        // fp16 complex ops
+        if (is_fp16_complex_insn(it)) return handle_v_complex_ph(cdg);
+
+        // IFMA / VNNI / BF16
+        if (is_ifma_insn(it)) return handle_v_ifma(cdg);
+        if (is_vnni_insn(it)) return handle_v_vnni(cdg);
+        if (is_bf16_insn(it)) return handle_v_bf16(cdg);
 
         // shifts
         if (is_shift_insn(it)) return handle_v_shift(cdg);
         if (is_var_shift_insn(it)) return handle_v_var_shift(cdg);
         if (is_rotate_insn(it)) return handle_v_rotate(cdg);
         if (is_var_rotate_insn(it)) return handle_v_var_rotate(cdg);
+        if (is_shift_double_insn(it)) return handle_v_shift_double(cdg);
+        if (is_multishift_insn(it)) return handle_v_multishift(cdg);
 
         // shuffles, perms, align
         if (is_shuffle_insn(it)) return handle_v_shuffle_int(cdg);
@@ -226,6 +268,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // rounding
         if (is_round_insn(it)) return handle_vround(cdg);
+
+        // fp16 sqrt
+        if (is_fp16_sqrt_insn(it)) return handle_v_sqrt_ph(cdg);
 
         // getexp/getmant/fixupimm/scalef/range/reduce
         if (is_getexp_insn(it)) return handle_v_getexp(cdg);

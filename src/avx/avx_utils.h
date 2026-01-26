@@ -99,6 +99,22 @@ bool is_rotate_insn(uint16 it);
 
 bool is_var_rotate_insn(uint16 it);
 
+bool is_shift_double_insn(uint16 it);
+
+bool is_multishift_insn(uint16 it);
+
+bool is_fp16_packed_math_insn(uint16 it);
+
+bool is_fp16_scalar_math_insn(uint16 it);
+
+bool is_fp16_sqrt_insn(uint16 it);
+
+bool is_fp16_fma_insn(uint16 it);
+
+bool is_fp16_fmaddsub_insn(uint16 it);
+
+bool is_fp16_complex_insn(uint16 it);
+
 bool is_shuffle_insn(uint16 it);
 
 bool is_perm_insn(uint16 it);
@@ -119,9 +135,27 @@ bool is_expand_insn(uint16 it);
 
 bool is_fma_insn(uint16 it);
 
+bool is_ifma_insn(uint16 it);
+
+bool is_vnni_insn(uint16 it);
+
+bool is_bf16_insn(uint16 it);
+
+bool is_fp16_move_insn(uint16 it);
+
 bool is_ternary_logic_insn(uint16 it);
 
 bool is_conflict_insn(uint16 it);
+
+bool is_popcnt_insn(uint16 it);
+
+bool is_lzcnt_insn(uint16 it);
+
+bool is_gfni_insn(uint16 it);
+
+bool is_pclmul_insn(uint16 it);
+
+bool is_aes_insn(uint16 it);
 
 bool is_math_insn(uint16 it);
 

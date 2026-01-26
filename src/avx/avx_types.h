@@ -16,6 +16,7 @@
 
 #define FLOAT_SIZE   4
 #define DOUBLE_SIZE  8
+#define WORD_SIZE    2
 #define DWORD_SIZE   4
 #define QWORD_SIZE   8
 

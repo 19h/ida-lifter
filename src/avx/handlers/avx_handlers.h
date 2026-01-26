@@ -66,6 +66,22 @@ merror_t handle_v_sign(codegen_t &cdg);
 
 merror_t handle_v_fma(codegen_t &cdg);
 
+merror_t handle_v_ifma(codegen_t &cdg);
+
+merror_t handle_v_vnni(codegen_t &cdg);
+
+merror_t handle_v_bf16(codegen_t &cdg);
+
+merror_t handle_v_math_ph(codegen_t &cdg);
+
+merror_t handle_v_math_sh(codegen_t &cdg);
+
+merror_t handle_v_sqrt_ph(codegen_t &cdg);
+
+merror_t handle_v_fma_ph(codegen_t &cdg);
+
+merror_t handle_v_complex_ph(codegen_t &cdg);
+
 merror_t handle_v_ternary_logic(codegen_t &cdg);
 
 merror_t handle_v_conflict(codegen_t &cdg);
@@ -104,6 +120,24 @@ merror_t handle_v_var_shift(codegen_t &cdg);
 merror_t handle_v_rotate(codegen_t &cdg);
 
 merror_t handle_v_var_rotate(codegen_t &cdg);
+
+merror_t handle_v_shift_double(codegen_t &cdg);
+
+merror_t handle_v_multishift(codegen_t &cdg);
+
+merror_t handle_v_popcnt(codegen_t &cdg);
+
+merror_t handle_v_lzcnt(codegen_t &cdg);
+
+merror_t handle_v_gfni(codegen_t &cdg);
+
+merror_t handle_v_pclmul(codegen_t &cdg);
+
+merror_t handle_v_aes(codegen_t &cdg);
+
+merror_t handle_vmov_sh(codegen_t &cdg);
+
+merror_t handle_vmovw(codegen_t &cdg);
 
 merror_t handle_v_shuffle_int(codegen_t &cdg);
 
