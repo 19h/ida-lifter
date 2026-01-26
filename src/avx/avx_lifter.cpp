@@ -28,9 +28,9 @@ struct ida_local AVXLifter : microcode_filter_t {
         ea_t ea = cdg.insn.ea;
         uint16 it = cdg.insn.itype;
 
-        // Skip k-register manipulation instructions (kmov, kunpck, etc.) - emit NOP
+        // Skip k-register manipulation instructions (kmov/kunpck) - emit NOP
         // These instructions IDA can't handle natively
-        if (it >= NN_kmovb && it <= NN_kunpckdq) {
+        if (it >= NN_kmovw && it <= NN_kunpckdq) {
             return true;
         }
 
@@ -136,8 +136,8 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         TRACE_ENTER("apply");
 
-        // Handle k-register manipulation instructions (kmov, kunpck, etc.) by emitting NOP
-        if (it >= NN_kmovb && it <= NN_kunpckdq) {
+        // Handle k-register manipulation instructions (kmov/kunpck) by emitting NOP
+        if (it >= NN_kmovw && it <= NN_kunpckdq) {
             cdg.emit(m_nop, 0, 0, 0, 0, 0);
             return MERR_OK;
         }
