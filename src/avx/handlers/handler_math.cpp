@@ -1081,6 +1081,57 @@ merror_t handle_vsqrtss(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vsqrt_sh(codegen_t &cdg) {
+    QASSERT(0xA060B, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
+
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    mreg_t r;
+    mreg_t t_mem = mr_none;
+    if (is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src(r_in.reg, WORD_SIZE);
+        mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
+        mop_t empty;
+        cdg.emit(m_xdu, &src, &empty, &dst);
+        r = t_mem;
+    } else {
+        r = reg2mreg(cdg.insn.Op3.reg);
+    }
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, WORD_SIZE);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name("_mm_sqrt_sh");
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+
+    icall.add_argument_reg(l, ti);
+    icall.add_argument_reg(r, ti);
+    icall.set_return_reg(d, ti);
+    icall.emit();
+
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vsqrt_ps_pd(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vsqrtpd);
@@ -1184,6 +1235,7 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
+    bool is_half = (cdg.insn.itype == NN_vrcpph || cdg.insn.itype == NN_vrsqrtph);
     bool is_double = (cdg.insn.itype == NN_vrcp14pd || cdg.insn.itype == NN_vrsqrt14pd);
     const char *op = nullptr;
     switch (cdg.insn.itype) {
@@ -1193,14 +1245,31 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
         case NN_vrcp14pd: op = "rcp14"; break;
         case NN_vrsqrt14ps:
         case NN_vrsqrt14pd: op = "rsqrt14"; break;
+        case NN_vrcpph: op = "rcp"; break;
+        case NN_vrsqrtph: op = "rsqrt"; break;
         default: return MERR_INSN;
     }
 
-    qstring iname;
-    iname.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, is_double ? "pd" : "ps");
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    const char *suffix = is_half ? "ph" : (is_double ? "pd" : "ps");
+    qstring base_name;
+    base_name.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, suffix);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(r, ti);
     icall.set_return_reg(d, ti);
@@ -1212,8 +1281,9 @@ merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
 
 merror_t handle_vround(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
+    bool is_half = (cdg.insn.itype == NN_vrndscaleph);
     bool is_double = (cdg.insn.itype == NN_vroundpd || cdg.insn.itype == NN_vrndscalepd);
-    bool is_scale = (cdg.insn.itype == NN_vrndscaleps || cdg.insn.itype == NN_vrndscalepd);
+    bool is_scale = (cdg.insn.itype == NN_vrndscaleps || cdg.insn.itype == NN_vrndscalepd || is_half);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -1221,15 +1291,30 @@ merror_t handle_vround(codegen_t &cdg) {
     QASSERT(0xA0507, cdg.insn.Op3.type == o_imm);
     uint64 imm = cdg.insn.Op3.value;
 
-    qstring iname;
-    if (is_scale) {
-        iname.cat_sprnt("_mm%s_roundscale_%s", get_size_prefix(size), is_double ? "pd" : "ps");
-    } else {
-        iname.cat_sprnt("_mm%s_round_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
     }
+
+    const char *suffix = is_half ? "ph" : (is_double ? "pd" : "ps");
+    qstring base_name;
+    if (is_scale) {
+        base_name.cat_sprnt("_mm%s_roundscale_%s", get_size_prefix(size), suffix);
+    } else {
+        base_name.cat_sprnt("_mm%s_round_%s", get_size_prefix(size), suffix);
+    }
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(size, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(r, ti);
     icall.add_argument_imm(imm, BT_INT32); // Rounding mode is int
@@ -1241,11 +1326,13 @@ merror_t handle_vround(codegen_t &cdg) {
 }
 
 merror_t handle_v_getexp(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vgetexppd);
-    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+    bool is_scalar = (cdg.insn.itype == NN_vgetexpss || cdg.insn.itype == NN_vgetexpsd);
+    bool is_half = (cdg.insn.itype == NN_vgetexpph);
+    bool is_double = (cdg.insn.itype == NN_vgetexppd || cdg.insn.itype == NN_vgetexpsd);
 
-    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
+
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
@@ -1253,8 +1340,13 @@ merror_t handle_v_getexp(codegen_t &cdg) {
         load_mask_operand(cdg, mask);
     }
 
+    const char *suffix = is_half ? "ph" : (is_double ? "sd" : "ss");
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_getexp_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_scalar) {
+        base_name.cat_sprnt("_mm_getexp_%s", suffix);
+    } else {
+        base_name.cat_sprnt("_mm%s_getexp_%s", get_size_prefix(size), is_half ? "ph" : (is_double ? "pd" : "ps"));
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1267,32 +1359,73 @@ merror_t handle_v_getexp(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
-    icall.add_argument_reg(r, ti);
-    icall.set_return_reg(d, ti);
-    icall.emit();
+    if (is_scalar) {
+        mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+        mreg_t r;
+        mreg_t t_mem = mr_none;
+        if (is_mem_op(cdg.insn.Op3)) {
+            AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            mop_t src(r_in.reg, elem_size);
+            mop_t dst(t_mem, XMM_SIZE);
+            if (XMM_SIZE > 8) {
+                dst.set_udt();
+            }
+            mop_t empty;
+            cdg.emit(m_xdu, &src, &empty, &dst);
+            r = t_mem;
+        } else {
+            r = reg2mreg(cdg.insn.Op3.reg);
+        }
+
+        icall.add_argument_reg(l, ti);
+        icall.add_argument_reg(r, ti);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+
+        if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    } else {
+        AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        icall.add_argument_reg(r, ti);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    }
 
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 
 merror_t handle_v_getmant(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vgetmantpd);
-    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+    bool is_scalar = (cdg.insn.itype == NN_vgetmantss || cdg.insn.itype == NN_vgetmantsd);
+    bool is_half = (cdg.insn.itype == NN_vgetmantph);
+    bool is_double = (cdg.insn.itype == NN_vgetmantpd || cdg.insn.itype == NN_vgetmantsd);
 
-    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
+
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    QASSERT(0xA0620, cdg.insn.Op3.type == o_imm);
-    uint64 imm = cdg.insn.Op3.value;
+    uint64 imm = 0;
+    if (is_scalar) {
+        QASSERT(0xA0620, cdg.insn.Op4.type == o_imm);
+        imm = cdg.insn.Op4.value;
+    } else {
+        QASSERT(0xA0620, cdg.insn.Op3.type == o_imm);
+        imm = cdg.insn.Op3.value;
+    }
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
     if (mask.has_mask) {
         load_mask_operand(cdg, mask);
     }
 
+    const char *suffix = is_half ? "ph" : (is_double ? "sd" : "ss");
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_getmant_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_scalar) {
+        base_name.cat_sprnt("_mm_getmant_%s", suffix);
+    } else {
+        base_name.cat_sprnt("_mm%s_getmant_%s", get_size_prefix(size), is_half ? "ph" : (is_double ? "pd" : "ps"));
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1305,22 +1438,51 @@ merror_t handle_v_getmant(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm, BT_INT32);
-    icall.set_return_reg(d, ti);
-    icall.emit();
+    if (is_scalar) {
+        mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+        mreg_t r;
+        mreg_t t_mem = mr_none;
+        if (is_mem_op(cdg.insn.Op3)) {
+            AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            mop_t src(r_in.reg, elem_size);
+            mop_t dst(t_mem, XMM_SIZE);
+            if (XMM_SIZE > 8) {
+                dst.set_udt();
+            }
+            mop_t empty;
+            cdg.emit(m_xdu, &src, &empty, &dst);
+            r = t_mem;
+        } else {
+            r = reg2mreg(cdg.insn.Op3.reg);
+        }
+
+        icall.add_argument_reg(l, ti);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_imm(imm, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+
+        if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    } else {
+        AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_imm(imm, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    }
 
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 
 merror_t handle_v_fixupimm(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vfixupimmpd);
+    bool is_scalar = (cdg.insn.itype == NN_vfixupimmss || cdg.insn.itype == NN_vfixupimmsd);
+    bool is_double = (cdg.insn.itype == NN_vfixupimmpd || cdg.insn.itype == NN_vfixupimmsd);
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
     int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     QASSERT(0xA0621, cdg.insn.Op4.type == o_imm);
@@ -1332,7 +1494,11 @@ merror_t handle_v_fixupimm(codegen_t &cdg) {
     }
 
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_fixupimm_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_scalar) {
+        base_name.cat_sprnt("_mm_fixupimm_%s", is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm%s_fixupimm_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1343,6 +1509,24 @@ merror_t handle_v_fixupimm(codegen_t &cdg) {
             icall.add_argument_reg(d, ti);
         }
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+
+    mreg_t r;
+    mreg_t t_mem = mr_none;
+    if (is_scalar && is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src(r_in.reg, elem_size);
+        mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
+        mop_t empty;
+        cdg.emit(m_xdu, &src, &empty, &dst);
+        r = t_mem;
+    } else {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        r = r_in.reg;
     }
 
     icall.add_argument_reg(l, ti);
@@ -1351,17 +1535,20 @@ merror_t handle_v_fixupimm(codegen_t &cdg) {
     icall.set_return_reg(d, ti);
     icall.emit();
 
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 
 merror_t handle_v_scalef(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vscalefpd);
-    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+    bool is_scalar = (cdg.insn.itype == NN_vscalefss || cdg.insn.itype == NN_vscalefsd);
+    bool is_half = (cdg.insn.itype == NN_vscalefph);
+    bool is_double = (cdg.insn.itype == NN_vscalefpd || cdg.insn.itype == NN_vscalefsd);
+
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
@@ -1370,7 +1557,13 @@ merror_t handle_v_scalef(codegen_t &cdg) {
     }
 
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_scalef_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_half) {
+        base_name.cat_sprnt("_mm%s_scalef_ph", get_size_prefix(size));
+    } else if (is_scalar) {
+        base_name.cat_sprnt("_mm_scalef_%s", is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm%s_scalef_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1383,22 +1576,42 @@ merror_t handle_v_scalef(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
+    mreg_t r;
+    mreg_t t_mem = mr_none;
+    if (is_scalar && is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src(r_in.reg, elem_size);
+        mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
+        mop_t empty;
+        cdg.emit(m_xdu, &src, &empty, &dst);
+        r = t_mem;
+    } else {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        r = r_in.reg;
+    }
+
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
     icall.set_return_reg(d, ti);
     icall.emit();
 
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 
 merror_t handle_v_range(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vrangepd);
+    bool is_scalar = (cdg.insn.itype == NN_vrangess || cdg.insn.itype == NN_vrangesd);
+    bool is_double = (cdg.insn.itype == NN_vrangepd || cdg.insn.itype == NN_vrangesd);
+
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
     int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     QASSERT(0xA0622, cdg.insn.Op4.type == o_imm);
@@ -1410,7 +1623,11 @@ merror_t handle_v_range(codegen_t &cdg) {
     }
 
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_range_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_scalar) {
+        base_name.cat_sprnt("_mm_range_%s", is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm%s_range_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1421,6 +1638,24 @@ merror_t handle_v_range(codegen_t &cdg) {
             icall.add_argument_reg(d, ti);
         }
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+
+    mreg_t r;
+    mreg_t t_mem = mr_none;
+    if (is_scalar && is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        mop_t src(r_in.reg, elem_size);
+        mop_t dst(t_mem, XMM_SIZE);
+        if (XMM_SIZE > 8) {
+            dst.set_udt();
+        }
+        mop_t empty;
+        cdg.emit(m_xdu, &src, &empty, &dst);
+        r = t_mem;
+    } else {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        r = r_in.reg;
     }
 
     icall.add_argument_reg(l, ti);
@@ -1429,20 +1664,29 @@ merror_t handle_v_range(codegen_t &cdg) {
     icall.set_return_reg(d, ti);
     icall.emit();
 
+    if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
 }
 
 merror_t handle_v_reduce(codegen_t &cdg) {
-    int size = get_vector_size(cdg.insn.Op1);
-    bool is_double = (cdg.insn.itype == NN_vreducepd);
-    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+    bool is_scalar = (cdg.insn.itype == NN_vreducess || cdg.insn.itype == NN_vreducesd);
+    bool is_half = (cdg.insn.itype == NN_vreduceph);
+    bool is_double = (cdg.insn.itype == NN_vreducepd || cdg.insn.itype == NN_vreducesd);
 
-    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    int size = is_scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
+    int elem_size = is_half ? WORD_SIZE : (is_double ? DOUBLE_SIZE : FLOAT_SIZE);
+
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
-    QASSERT(0xA0623, cdg.insn.Op3.type == o_imm);
-    uint64 imm = cdg.insn.Op3.value;
+    uint64 imm = 0;
+    if (is_scalar) {
+        QASSERT(0xA0623, cdg.insn.Op4.type == o_imm);
+        imm = cdg.insn.Op4.value;
+    } else {
+        QASSERT(0xA0623, cdg.insn.Op3.type == o_imm);
+        imm = cdg.insn.Op3.value;
+    }
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
     if (mask.has_mask) {
@@ -1450,7 +1694,13 @@ merror_t handle_v_reduce(codegen_t &cdg) {
     }
 
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_reduce_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    if (is_half) {
+        base_name.cat_sprnt("_mm%s_reduce_ph", get_size_prefix(size));
+    } else if (is_scalar) {
+        base_name.cat_sprnt("_mm_reduce_%s", is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm%s_reduce_%s", get_size_prefix(size), is_double ? "pd" : "ps");
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
@@ -1463,10 +1713,39 @@ merror_t handle_v_reduce(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm, BT_INT32);
-    icall.set_return_reg(d, ti);
-    icall.emit();
+    if (is_scalar) {
+        mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+        mreg_t r;
+        mreg_t t_mem = mr_none;
+        if (is_mem_op(cdg.insn.Op3)) {
+            AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            mop_t src(r_in.reg, elem_size);
+            mop_t dst(t_mem, XMM_SIZE);
+            if (XMM_SIZE > 8) {
+                dst.set_udt();
+            }
+            mop_t empty;
+            cdg.emit(m_xdu, &src, &empty, &dst);
+            r = t_mem;
+        } else {
+            r = reg2mreg(cdg.insn.Op3.reg);
+        }
+
+        icall.add_argument_reg(l, ti);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_imm(imm, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+
+        if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+    } else {
+        AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        icall.add_argument_reg(r, ti);
+        icall.add_argument_imm(imm, BT_INT32);
+        icall.set_return_reg(d, ti);
+        icall.emit();
+    }
 
     if (size == XMM_SIZE) clear_upper(cdg, d);
     return MERR_OK;
@@ -1499,12 +1778,44 @@ merror_t handle_vrcp_rsqrt_ss(codegen_t &cdg) {
         r = reg2mreg(cdg.insn.Op3.reg);
     }
 
-    const char *op = (cdg.insn.itype == NN_vrcpss) ? "rcp" : "rsqrt";
-    qstring iname;
-    iname.cat_sprnt("_mm_%s_ss", op);
+    bool is_double = (cdg.insn.itype == NN_vrcp14sd || cdg.insn.itype == NN_vrsqrt14sd);
+    bool is_14 = (cdg.insn.itype == NN_vrcp14ss || cdg.insn.itype == NN_vrsqrt14ss ||
+                  cdg.insn.itype == NN_vrcp14sd || cdg.insn.itype == NN_vrsqrt14sd);
+
+    const char *op = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vrcpss: op = "rcp"; break;
+        case NN_vrsqrtss: op = "rsqrt"; break;
+        case NN_vrcp14ss:
+        case NN_vrcp14sd: op = "rcp14"; break;
+        case NN_vrsqrt14ss:
+        case NN_vrsqrt14sd: op = "rsqrt14"; break;
+        default: return MERR_INSN;
+    }
+
+    int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name;
+    if (is_14) {
+        base_name.cat_sprnt("_mm_%s_%s", op, is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm_%s_%s", op, is_double ? "sd" : "ss");
+    }
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
@@ -1521,7 +1832,8 @@ merror_t handle_vrcp_rsqrt_ss(codegen_t &cdg) {
 merror_t handle_vround_ss_sd(codegen_t &cdg) {
     QASSERT(0xA0609, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
 
-    bool is_double = (cdg.insn.itype == NN_vroundsd);
+    bool is_double = (cdg.insn.itype == NN_vroundsd || cdg.insn.itype == NN_vrndscalesd);
+    bool is_scale = (cdg.insn.itype == NN_vrndscaless || cdg.insn.itype == NN_vrndscalesd);
     int elem_size = is_double ? DOUBLE_SIZE : FLOAT_SIZE;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
@@ -1548,11 +1860,28 @@ merror_t handle_vround_ss_sd(codegen_t &cdg) {
     QASSERT(0xA0610, cdg.insn.Op4.type == o_imm);
     uint64 imm = cdg.insn.Op4.value;
 
-    qstring iname;
-    iname.cat_sprnt("_mm_round_%s", is_double ? "sd" : "ss");
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+    }
+
+    qstring base_name;
+    if (is_scale) {
+        base_name.cat_sprnt("_mm_roundscale_%s", is_double ? "sd" : "ss");
+    } else {
+        base_name.cat_sprnt("_mm_round_%s", is_double ? "sd" : "ss");
+    }
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
     tinfo_t ti = get_type_robust(XMM_SIZE, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
 
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);

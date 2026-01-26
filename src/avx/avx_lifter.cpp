@@ -46,24 +46,27 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (has_opmask(cdg.insn)) {
             bool mask_ok = is_packed_math_insn(it) || is_fma_insn(it) || is_fmaddsub_insn(it) ||
                            is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
-                           is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
-                           is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
-                           is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
-                           is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
-                           is_shift_double_insn(it) || is_multishift_insn(it) ||
-                           is_rotate_insn(it) || is_var_rotate_insn(it) ||
-                           is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
-                           is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
-                           is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
-                           is_scalar_math(it) || is_scalar_minmax(it) || is_scalar_move(it) ||
-                           is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
-                           is_gather_insn(it) || is_scatter_insn(it) || is_addsub_insn(it) ||
-                           is_approx_insn(it) || is_round_insn(it) ||
-                           is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
-                           is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
-                           is_mask_to_vec_insn(it) || is_popcnt_insn(it) || is_lzcnt_insn(it) ||
-                           is_gfni_insn(it) || is_fp16_move_insn(it) ||
-                           is_ternary_logic_insn(it) || is_conflict_insn(it);
+                            is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
+                            is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
+                            is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
+                            is_fp16_scalar_sqrt_insn(it) ||
+                            is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
+                            is_shift_double_insn(it) || is_multishift_insn(it) ||
+                            is_rotate_insn(it) || is_var_rotate_insn(it) ||
+                            is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
+                            is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
+                            is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
+                            is_scalar_math(it) || is_scalar_minmax(it) || is_scalar_move(it) ||
+                            is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
+                            is_gather_insn(it) || is_scatter_insn(it) || is_addsub_insn(it) ||
+                            is_approx_insn(it) || is_round_insn(it) ||
+                            is_scalar_approx_insn(it) || is_scalar_round_insn(it) ||
+                            is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
+                            is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
+                            is_mask_to_vec_insn(it) || is_popcnt_insn(it) || is_lzcnt_insn(it) ||
+                            is_gfni_insn(it) || is_fp16_move_insn(it) ||
+                            is_ternary_logic_insn(it) || is_conflict_insn(it) ||
+                            it == NN_vcvtss2sd || it == NN_vcvtsd2ss;
             if (!mask_ok) {
                 return false;
             }
@@ -109,6 +112,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
                  is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
                  is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
+                 is_fp16_scalar_sqrt_insn(it) ||
                  is_shift_double_insn(it) || is_multishift_insn(it) ||
                  is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
                  is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
@@ -120,7 +124,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
                  is_pmovsx_insn(it) || is_pmovzx_insn(it) || is_pmovwb_insn(it) ||
-                 is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
+                 is_pmov_down_insn(it) || is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
                  is_insertps_insn(it) || it == NN_vsqrtsd;
 
         if (m) {
@@ -179,6 +183,10 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vcvtqq2ps) return handle_vcvt_qq2fp(cdg, false, false);
         if (it == NN_vcvtuqq2pd) return handle_vcvt_qq2fp(cdg, true, true);
         if (it == NN_vcvtuqq2ps) return handle_vcvt_qq2fp(cdg, false, true);
+        if (it == NN_vcvtpd2ph || it == NN_vcvtph2pd || it == NN_vcvtph2psx || it == NN_vcvtps2phx ||
+            it == NN_vcvtph2w || it == NN_vcvttph2w || it == NN_vcvtph2uw || it == NN_vcvttph2uw ||
+            it == NN_vcvtw2ph || it == NN_vcvtuw2ph)
+            return handle_vcvt_fp16(cdg);
 
         // SAD (sum of absolute differences)
         if (is_sad_insn(it)) return handle_vsad(cdg);
@@ -314,6 +322,7 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // misc
         if (it == NN_vsqrtss) return handle_vsqrtss(cdg);
+        if (it == NN_vsqrtsh) return handle_vsqrt_sh(cdg);
         if (it == NN_vsqrtps || it == NN_vsqrtpd) return handle_vsqrt_ps_pd(cdg);
         if (it == NN_vshufps) return handle_vshufps(cdg);
         if (it == NN_vshufpd) return handle_vshufpd(cdg);
@@ -399,6 +408,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // narrow to bytes
         if (is_pmovwb_insn(it)) return handle_vpmovwb(cdg);
+
+        // down-convert packed integers
+        if (is_pmov_down_insn(it)) return handle_vpmov_down(cdg);
 
         // byte shift
         if (is_byte_shift_insn(it)) return handle_vpslldq_vpsrldq(cdg);

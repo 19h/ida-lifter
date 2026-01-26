@@ -73,6 +73,49 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, dst_size);
+    if (mask.has_mask) {
+        load_mask_operand(cdg, mask);
+
+        const char *base_name = is_ss2sd ? "_mm_cvtss_sd" : "_mm_cvtsd_ss";
+        qstring iname = make_masked_intrinsic_name(base_name, mask);
+
+        AVXIntrinsic icall(&cdg, iname.c_str());
+        tinfo_t ti_dst = get_type_robust(XMM_SIZE, false, is_ss2sd);
+        tinfo_t ti_a = get_type_robust(XMM_SIZE, false, is_ss2sd);
+        tinfo_t ti_b = get_type_robust(XMM_SIZE, false, !is_ss2sd);
+
+        if (!mask.is_zeroing) {
+            icall.add_argument_reg(d, ti_dst);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+
+        mreg_t r_reg;
+        mreg_t t_mem = mr_none;
+        if (is_mem_op(cdg.insn.Op3)) {
+            t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            mop_t src_mop(r.reg, src_size);
+            mop_t dst_mop(t_mem, XMM_SIZE);
+            if (XMM_SIZE > 8) {
+                dst_mop.set_udt();
+            }
+            mop_t empty;
+            cdg.emit(m_xdu, &src_mop, &empty, &dst_mop);
+            r_reg = t_mem;
+        } else {
+            r_reg = r.reg;
+        }
+
+        icall.add_argument_reg(l, ti_a);
+        icall.add_argument_reg(r_reg, ti_b);
+        icall.set_return_reg(d, ti_dst);
+        icall.emit();
+
+        if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+        clear_upper(cdg, d);
+        return MERR_OK;
+    }
+
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
     cdg.emit(m_mov, XMM_SIZE, l, 0, t, 0);
     cdg.emit(m_f2f, new mop_t(r, src_size), nullptr, new mop_t(t, dst_size));
@@ -308,6 +351,115 @@ merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned) {
     icall.emit();
 
     if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_fp16(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+
+    int dst_size = 0;
+    mreg_t d = mr_none;
+    if (is_vector_reg(cdg.insn.Op1)) {
+        dst_size = get_vector_size(cdg.insn.Op1);
+        d = reg2mreg(cdg.insn.Op1.reg);
+    } else if (is_mem_op(cdg.insn.Op1)) {
+        dst_size = get_dtype_size(cdg.insn.Op1.dtype);
+    }
+    if (dst_size == 0) {
+        dst_size = XMM_SIZE;
+    }
+
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+    int src_size = src.size > 0 ? src.size : get_vector_size(cdg.insn.Op2);
+    if (src_size == 0) {
+        src_size = XMM_SIZE;
+    }
+
+    const char *iname = nullptr;
+    bool src_is_int = false;
+    bool src_is_double = false;
+    bool dst_is_int = false;
+    bool dst_is_double = false;
+
+    switch (it) {
+        case NN_vcvtpd2ph:
+            iname = (src_size == ZMM_SIZE) ? "_mm512_cvtpd_ph"
+                   : (src_size == YMM_SIZE) ? "_mm256_cvtpd_ph"
+                                            : "_mm_cvtpd_ph";
+            src_is_double = true;
+            break;
+        case NN_vcvtph2pd:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvtph_pd"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvtph_pd"
+                                            : "_mm_cvtph_pd";
+            dst_is_double = true;
+            break;
+        case NN_vcvtph2psx:
+            iname = "_mm512_cvtxph_ps";
+            break;
+        case NN_vcvtps2phx:
+            iname = "_mm512_cvtxps_ph";
+            break;
+        case NN_vcvtph2w:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvtph_epi16"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvtph_epi16"
+                                            : "_mm_cvtph_epi16";
+            dst_is_int = true;
+            break;
+        case NN_vcvttph2w:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvttph_epi16"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvttph_epi16"
+                                            : "_mm_cvttph_epi16";
+            dst_is_int = true;
+            break;
+        case NN_vcvtph2uw:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvtph_epu16"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvtph_epu16"
+                                            : "_mm_cvtph_epu16";
+            dst_is_int = true;
+            break;
+        case NN_vcvttph2uw:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvttph_epu16"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvttph_epu16"
+                                            : "_mm_cvttph_epu16";
+            dst_is_int = true;
+            break;
+        case NN_vcvtw2ph:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvtepi16_ph"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvtepi16_ph"
+                                            : "_mm_cvtepi16_ph";
+            src_is_int = true;
+            break;
+        case NN_vcvtuw2ph:
+            iname = (dst_size == ZMM_SIZE) ? "_mm512_cvtepu16_ph"
+                   : (dst_size == YMM_SIZE) ? "_mm256_cvtepu16_ph"
+                                            : "_mm_cvtepu16_ph";
+            src_is_int = true;
+            break;
+        default:
+            return MERR_INSN;
+    }
+
+    AVXIntrinsic icall(&cdg, iname);
+    tinfo_t ti_src = get_type_robust(src_size, src_is_int, src_is_double);
+    tinfo_t ti_dst = get_type_robust(dst_size, dst_is_int, dst_is_double);
+
+    icall.add_argument_reg(src, ti_src);
+
+    if (d != mr_none) {
+        icall.set_return_reg(d, ti_dst);
+        icall.emit();
+        if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    } else if (is_mem_op(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(dst_size);
+        icall.set_return_reg(tmp, ti_dst);
+        icall.emit();
+        store_operand_hack(cdg, 0, mop_t(tmp, dst_size));
+        cdg.mba->free_kreg(tmp, dst_size);
+    } else {
+        return MERR_INSN;
+    }
+
     return MERR_OK;
 }
 

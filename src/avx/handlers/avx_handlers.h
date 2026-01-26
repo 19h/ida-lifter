@@ -41,6 +41,8 @@ merror_t handle_vcvt_ps2qq(codegen_t &cdg, bool trunc, bool is_unsigned);
 
 merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned);
 
+merror_t handle_vcvt_fp16(codegen_t &cdg);
+
 // SAD (Sum of Absolute Differences)
 merror_t handle_vsad(codegen_t &cdg);
 
@@ -93,6 +95,8 @@ merror_t handle_v_ternary_logic(codegen_t &cdg);
 merror_t handle_v_conflict(codegen_t &cdg);
 
 merror_t handle_vsqrtss(codegen_t &cdg);
+
+merror_t handle_vsqrt_sh(codegen_t &cdg);
 
 merror_t handle_vsqrt_ps_pd(codegen_t &cdg);
 
@@ -249,6 +253,9 @@ merror_t handle_vpmovzx(codegen_t &cdg);
 
 // Narrowing move (pack) with/without saturation
 merror_t handle_vpmovwb(codegen_t &cdg);
+
+// Down-convert packed integers
+merror_t handle_vpmov_down(codegen_t &cdg);
 
 // Byte shift
 merror_t handle_vpslldq_vpsrldq(codegen_t &cdg);

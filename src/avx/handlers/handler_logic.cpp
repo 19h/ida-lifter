@@ -2150,12 +2150,23 @@ merror_t handle_vfmaddsub(codegen_t &cdg) {
     const char *type = nullptr;
     int order = 0;
     bool is_double = false;
+    bool is_half = false;
 
     uint16 it = cdg.insn.itype;
 
     // vfmaddsub: odd elements are added, even elements are subtracted
     // vfmsubadd: odd elements are subtracted, even elements are added
-    if (it >= NN_vfmaddsub132ps && it <= NN_vfmaddsub231pd) {
+    if (it == NN_vfmaddsub132ph || it == NN_vfmaddsub213ph || it == NN_vfmaddsub231ph) {
+        op = "fmaddsub";
+        is_half = true;
+        type = "ph";
+        order = (it == NN_vfmaddsub132ph) ? 132 : (it == NN_vfmaddsub213ph) ? 213 : 231;
+    } else if (it == NN_vfmsubadd132ph || it == NN_vfmsubadd213ph || it == NN_vfmsubadd231ph) {
+        op = "fmsubadd";
+        is_half = true;
+        type = "ph";
+        order = (it == NN_vfmsubadd132ph) ? 132 : (it == NN_vfmsubadd213ph) ? 213 : 231;
+    } else if (it >= NN_vfmaddsub132ps && it <= NN_vfmaddsub231pd) {
         op = "fmaddsub";
         int base = it - NN_vfmaddsub132ps;
         order = (base / 2) == 0 ? 132 : ((base / 2) == 1 ? 213 : 231);
@@ -2174,7 +2185,7 @@ merror_t handle_vfmaddsub(codegen_t &cdg) {
     qstring base_name;
     base_name.cat_sprnt("_mm%s_%s_%s", get_size_prefix(size), op, type);
 
-    int elem_size = is_double ? 8 : 4;
+    int elem_size = is_half ? WORD_SIZE : (is_double ? 8 : 4);
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
     if (mask.has_mask) {
         load_mask_operand(cdg, mask);
@@ -2556,6 +2567,64 @@ merror_t handle_vpmovwb(codegen_t &cdg) {
     icall.emit();
 
     if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vpmov_down(codegen_t &cdg) {
+    int dst_size = 0;
+    mreg_t d = mr_none;
+    if (is_vector_reg(cdg.insn.Op1)) {
+        dst_size = get_vector_size(cdg.insn.Op1);
+        d = reg2mreg(cdg.insn.Op1.reg);
+    } else if (is_mem_op(cdg.insn.Op1)) {
+        dst_size = get_dtype_size(cdg.insn.Op1.dtype);
+    }
+    if (dst_size == 0) {
+        dst_size = XMM_SIZE;
+    }
+
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+    int src_size = src.size > 0 ? src.size : get_vector_size(cdg.insn.Op2);
+
+    const char *iname = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vpmovdb: iname = "_mm512_cvtepi32_epi8"; break;
+        case NN_vpmovdw: iname = "_mm512_cvtepi32_epi16"; break;
+        case NN_vpmovqb: iname = "_mm512_cvtepi64_epi8"; break;
+        case NN_vpmovqd: iname = "_mm512_cvtepi64_epi32"; break;
+        case NN_vpmovsdb: iname = "_mm512_cvtsepi32_epi8"; break;
+        case NN_vpmovsdw: iname = "_mm512_cvtsepi32_epi16"; break;
+        case NN_vpmovsqb: iname = "_mm512_cvtsepi64_epi8"; break;
+        case NN_vpmovsqd: iname = "_mm512_cvtsepi64_epi32"; break;
+        case NN_vpmovsqw: iname = "_mm512_cvtsepi64_epi16"; break;
+        case NN_vpmovusdb: iname = "_mm512_cvtusepi32_epi8"; break;
+        case NN_vpmovusdw: iname = "_mm512_cvtusepi32_epi16"; break;
+        case NN_vpmovusqb: iname = "_mm512_cvtusepi64_epi8"; break;
+        case NN_vpmovusqd: iname = "_mm512_cvtusepi64_epi32"; break;
+        case NN_vpmovusqw: iname = "_mm512_cvtusepi64_epi16"; break;
+        default: return MERR_INSN;
+    }
+
+    AVXIntrinsic icall(&cdg, iname);
+    tinfo_t ti_src = get_type_robust(src_size, true, false);
+    tinfo_t ti_dst = get_type_robust(dst_size, true, false);
+
+    icall.add_argument_reg(src, ti_src);
+
+    if (d != mr_none) {
+        icall.set_return_reg(d, ti_dst);
+        icall.emit();
+        if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    } else if (is_mem_op(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(dst_size);
+        icall.set_return_reg(tmp, ti_dst);
+        icall.emit();
+        store_operand_hack(cdg, 0, mop_t(tmp, dst_size));
+        cdg.mba->free_kreg(tmp, dst_size);
+    } else {
+        return MERR_INSN;
+    }
+
     return MERR_OK;
 }
 

@@ -115,6 +115,8 @@ bool is_fp16_fmaddsub_insn(uint16 it);
 
 bool is_fp16_complex_insn(uint16 it);
 
+bool is_fp16_scalar_sqrt_insn(uint16 it);
+
 bool is_shuffle_insn(uint16 it);
 
 bool is_perm_insn(uint16 it);
@@ -144,6 +146,8 @@ bool is_bf16_insn(uint16 it);
 bool is_fp16_move_insn(uint16 it);
 
 bool is_pmovwb_insn(uint16 it);
+
+bool is_pmov_down_insn(uint16 it);
 
 bool is_ternary_logic_insn(uint16 it);
 
