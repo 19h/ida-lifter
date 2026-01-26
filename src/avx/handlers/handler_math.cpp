@@ -477,7 +477,15 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             is_int = true;
             elem_size = 1;
             break;
+        case NN_vpaddusb: fmt = "_mm%s_adds_epu8";
+            is_int = true;
+            elem_size = 1;
+            break;
         case NN_vpsubsb: fmt = "_mm%s_subs_epi8";
+            is_int = true;
+            elem_size = 1;
+            break;
+        case NN_vpsubusb: fmt = "_mm%s_subs_epu8";
             is_int = true;
             elem_size = 1;
             break;
@@ -485,7 +493,15 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             is_int = true;
             elem_size = 2;
             break;
+        case NN_vpaddusw: fmt = "_mm%s_adds_epu16";
+            is_int = true;
+            elem_size = 2;
+            break;
         case NN_vpsubsw: fmt = "_mm%s_subs_epi16";
+            is_int = true;
+            elem_size = 2;
+            break;
+        case NN_vpsubusw: fmt = "_mm%s_subs_epu16";
             is_int = true;
             elem_size = 2;
             break;
@@ -568,6 +584,10 @@ merror_t handle_v_math_p(codegen_t &cdg) {
             elem_size = 2;
             break;
         case NN_vpmulhuw: fmt = "_mm%s_mulhi_epu16";
+            is_int = true;
+            elem_size = 2;
+            break;
+        case NN_vpmulhrsw: fmt = "_mm%s_mulhrs_epi16";
             is_int = true;
             elem_size = 2;
             break;
@@ -1633,6 +1653,7 @@ merror_t handle_vaddsubps_pd(codegen_t &cdg) {
 merror_t handle_vsad(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     bool is_mpsadbw = (cdg.insn.itype == NN_vmpsadbw);
+    bool is_dbsadbw = (cdg.insn.itype == NN_vdbpsadbw);
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
@@ -1641,6 +1662,8 @@ merror_t handle_vsad(codegen_t &cdg) {
     qstring iname;
     if (is_mpsadbw) {
         iname = make_intrinsic_name("_mm%s_mpsadbw_epu8", size);
+    } else if (is_dbsadbw) {
+        iname = make_intrinsic_name("_mm%s_dbsad_epu8", size);
     } else {
         iname = make_intrinsic_name("_mm%s_sad_epu8", size);
     }
@@ -1651,8 +1674,8 @@ merror_t handle_vsad(codegen_t &cdg) {
     icall.add_argument_reg(l, ti);
     icall.add_argument_reg(r, ti);
 
-    if (is_mpsadbw) {
-        // vmpsadbw has an immediate operand
+    if (is_mpsadbw || is_dbsadbw) {
+        // vmpsadbw/vdbpsadbw have an immediate operand
         uint8 imm = (uint8)cdg.insn.Op4.value;
         icall.add_argument_imm(imm, 4);
     }

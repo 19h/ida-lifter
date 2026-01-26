@@ -233,4 +233,82 @@ merror_t handle_vcvt_udq2pd(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vcvt_pd2qq(codegen_t &cdg, bool trunc, bool is_unsigned) {
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    int src_size = is_mem_op(cdg.insn.Op2) ? get_dtype_size(cdg.insn.Op2.dtype)
+                                           : get_vector_size(cdg.insn.Op2);
+    if (src_size == 0) src_size = dst_size;
+
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *fmt = nullptr;
+    if (trunc) {
+        fmt = is_unsigned ? "_mm%s_cvttpd_epu64" : "_mm%s_cvttpd_epi64";
+    } else {
+        fmt = is_unsigned ? "_mm%s_cvtpd_epu64" : "_mm%s_cvtpd_epi64";
+    }
+
+    qstring iname = make_intrinsic_name(fmt, dst_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    icall.add_argument_reg(r, get_type_robust(src_size, false, true));
+    icall.set_return_reg(d, get_type_robust(dst_size, true, false));
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_ps2qq(codegen_t &cdg, bool trunc, bool is_unsigned) {
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    int src_size = is_mem_op(cdg.insn.Op2) ? get_dtype_size(cdg.insn.Op2.dtype)
+                                           : get_vector_size(cdg.insn.Op2);
+    if (src_size == 0) src_size = dst_size / 2;
+
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *fmt = nullptr;
+    if (trunc) {
+        fmt = is_unsigned ? "_mm%s_cvttps_epu64" : "_mm%s_cvttps_epi64";
+    } else {
+        fmt = is_unsigned ? "_mm%s_cvtps_epu64" : "_mm%s_cvtps_epi64";
+    }
+
+    qstring iname = make_intrinsic_name(fmt, dst_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    icall.add_argument_reg(r, get_type_robust(src_size, false, false));
+    icall.set_return_reg(d, get_type_robust(dst_size, true, false));
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned) {
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    int src_size = is_mem_op(cdg.insn.Op2) ? get_dtype_size(cdg.insn.Op2.dtype)
+                                           : get_vector_size(cdg.insn.Op2);
+    if (src_size == 0) src_size = is_double ? dst_size : dst_size * 2;
+
+    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    const char *fmt = nullptr;
+    if (is_double) {
+        fmt = is_unsigned ? "_mm%s_cvtepu64_pd" : "_mm%s_cvtepi64_pd";
+    } else {
+        fmt = is_unsigned ? "_mm%s_cvtepu64_ps" : "_mm%s_cvtepi64_ps";
+    }
+
+    qstring iname = make_intrinsic_name(fmt, src_size);
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    icall.add_argument_reg(r, get_type_robust(src_size, true, false));
+    icall.set_return_reg(d, get_type_robust(dst_size, false, is_double));
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 #endif // IDA_SDK_VERSION >= 750

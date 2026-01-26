@@ -35,6 +35,12 @@ merror_t handle_vcvt_udq2ps(codegen_t &cdg);
 
 merror_t handle_vcvt_udq2pd(codegen_t &cdg);
 
+merror_t handle_vcvt_pd2qq(codegen_t &cdg, bool trunc, bool is_unsigned);
+
+merror_t handle_vcvt_ps2qq(codegen_t &cdg, bool trunc, bool is_unsigned);
+
+merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned);
+
 // SAD (Sum of Absolute Differences)
 merror_t handle_vsad(codegen_t &cdg);
 
@@ -163,6 +169,8 @@ merror_t handle_vbroadcastf128_fp(codegen_t &cdg);
 
 merror_t handle_vbroadcasti128_int(codegen_t &cdg);
 
+merror_t handle_vbroadcast_x4(codegen_t &cdg);
+
 merror_t handle_vcmp_ps_pd(codegen_t &cdg);
 
 merror_t handle_vpcmp_int(codegen_t &cdg);
@@ -238,6 +246,9 @@ merror_t handle_vpinsert(codegen_t &cdg);
 // Sign/zero extend
 merror_t handle_vpmovsx(codegen_t &cdg);
 merror_t handle_vpmovzx(codegen_t &cdg);
+
+// Narrowing move (pack) with/without saturation
+merror_t handle_vpmovwb(codegen_t &cdg);
 
 // Byte shift
 merror_t handle_vpslldq_vpsrldq(codegen_t &cdg);

@@ -119,7 +119,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
-                 is_pmovsx_insn(it) || is_pmovzx_insn(it) ||
+                 is_pmovsx_insn(it) || is_pmovzx_insn(it) || is_pmovwb_insn(it) ||
                  is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
                  is_insertps_insn(it) || it == NN_vsqrtsd;
 
@@ -167,6 +167,18 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vcvttpd2udq) return handle_vcvt_pd2udq(cdg, true);
         if (it == NN_vcvtudq2ps) return handle_vcvt_udq2ps(cdg);
         if (it == NN_vcvtudq2pd) return handle_vcvt_udq2pd(cdg);
+        if (it == NN_vcvtpd2qq) return handle_vcvt_pd2qq(cdg, false, false);
+        if (it == NN_vcvtpd2uqq) return handle_vcvt_pd2qq(cdg, false, true);
+        if (it == NN_vcvttpd2qq) return handle_vcvt_pd2qq(cdg, true, false);
+        if (it == NN_vcvttpd2uqq) return handle_vcvt_pd2qq(cdg, true, true);
+        if (it == NN_vcvtps2qq) return handle_vcvt_ps2qq(cdg, false, false);
+        if (it == NN_vcvtps2uqq) return handle_vcvt_ps2qq(cdg, false, true);
+        if (it == NN_vcvttps2qq) return handle_vcvt_ps2qq(cdg, true, false);
+        if (it == NN_vcvttps2uqq) return handle_vcvt_ps2qq(cdg, true, true);
+        if (it == NN_vcvtqq2pd) return handle_vcvt_qq2fp(cdg, true, false);
+        if (it == NN_vcvtqq2ps) return handle_vcvt_qq2fp(cdg, false, false);
+        if (it == NN_vcvtuqq2pd) return handle_vcvt_qq2fp(cdg, true, true);
+        if (it == NN_vcvtuqq2ps) return handle_vcvt_qq2fp(cdg, false, true);
 
         // SAD (sum of absolute differences)
         if (is_sad_insn(it)) return handle_vsad(cdg);
@@ -284,6 +296,9 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vbroadcastss || it == NN_vbroadcastsd) return handle_vbroadcast_ss_sd(cdg);
         if (it == NN_vbroadcastf128) return handle_vbroadcastf128_fp(cdg);
         if (it == NN_vbroadcasti128) return handle_vbroadcasti128_int(cdg);
+        if (it == NN_vbroadcastf32x4 || it == NN_vbroadcastf64x4 ||
+            it == NN_vbroadcasti32x4 || it == NN_vbroadcasti64x4)
+            return handle_vbroadcast_x4(cdg);
 
         // packed compares
         if (is_packed_compare_insn(it)) return handle_vcmp_ps_pd(cdg);
@@ -310,7 +325,8 @@ struct ida_local AVXLifter : microcode_filter_t {
             it == NN_vextracti32x4 || it == NN_vextracti32x8 || it == NN_vextracti64x4)
             return handle_vextractf128(cdg);
         if (it == NN_vinsertf128 || it == NN_vinserti128 ||
-            it == NN_vinserti32x4 || it == NN_vinserti32x8 || it == NN_vinserti64x4)
+            it == NN_vinserti32x4 || it == NN_vinserti32x8 || it == NN_vinserti64x4 ||
+            it == NN_vinsertf32x4 || it == NN_vinsertf64x4)
             return handle_vinsertf128(cdg);
 
         // movdup
@@ -380,6 +396,9 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // zero extend
         if (is_pmovzx_insn(it)) return handle_vpmovzx(cdg);
+
+        // narrow to bytes
+        if (is_pmovwb_insn(it)) return handle_vpmovwb(cdg);
 
         // byte shift
         if (is_byte_shift_insn(it)) return handle_vpslldq_vpsrldq(cdg);

@@ -207,17 +207,26 @@ merror_t handle_v_var_shift(codegen_t &cdg) {
     const char *op = nullptr;
     int bits = 0;
     switch (cdg.insn.itype) {
+        case NN_vpsllvw: op = "sllv";
+            bits = 16;
+            break;
         case NN_vpsllvd: op = "sllv";
             bits = 32;
             break;
         case NN_vpsllvq: op = "sllv";
             bits = 64;
             break;
+        case NN_vpsrlvw: op = "srlv";
+            bits = 16;
+            break;
         case NN_vpsrlvd: op = "srlv";
             bits = 32;
             break;
         case NN_vpsrlvq: op = "srlv";
             bits = 64;
+            break;
+        case NN_vpsravw: op = "srav";
+            bits = 16;
             break;
         case NN_vpsravd: op = "srav";
             bits = 32;
@@ -1316,6 +1325,58 @@ merror_t handle_vbroadcasti128_int(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_vbroadcast_x4(codegen_t &cdg) {
+    QASSERT(0xA0704, is_vector_reg(cdg.insn.Op1));
+
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    int src_size = XMM_SIZE;
+    bool is_int = false;
+    bool is_double = false;
+    const char *suffix = nullptr;
+
+    switch (cdg.insn.itype) {
+        case NN_vbroadcastf32x4:
+            suffix = "f32x4";
+            src_size = XMM_SIZE;
+            break;
+        case NN_vbroadcastf64x4:
+            suffix = "f64x4";
+            src_size = YMM_SIZE;
+            is_double = true;
+            break;
+        case NN_vbroadcasti32x4:
+            suffix = "i32x4";
+            src_size = XMM_SIZE;
+            is_int = true;
+            break;
+        case NN_vbroadcasti64x4:
+            suffix = "i64x4";
+            src_size = YMM_SIZE;
+            is_int = true;
+            break;
+        default:
+            return MERR_INSN;
+    }
+
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    qstring iname;
+    iname.cat_sprnt("_mm%s_broadcast_%s", get_size_prefix(dst_size), suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t src_type = get_type_robust(src_size, is_int, is_double);
+    tinfo_t dst_type = get_type_robust(dst_size, is_int, is_double);
+
+    icall.add_argument_reg(src, src_type);
+    icall.set_return_reg(d, dst_type);
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
 merror_t handle_vcmp_ps_pd(codegen_t &cdg) {
     int size = get_op_size(cdg.insn);
     bool is_double = (cdg.insn.itype >= NN_vcmpeqpd && cdg.insn.itype <= NN_vcmptrue_uspd) ||
@@ -1735,6 +1796,7 @@ merror_t handle_vinsertf128(codegen_t &cdg) {
     int dst_size = get_vector_size(cdg.insn.Op1);
     int src2_size = XMM_SIZE;
     bool is_int = true;
+    bool is_double = false;
     qstring base_name;
 
     switch (cdg.insn.itype) {
@@ -1742,7 +1804,20 @@ merror_t handle_vinsertf128(codegen_t &cdg) {
             dst_size = YMM_SIZE;
             src2_size = XMM_SIZE;
             is_int = false;
+            is_double = false;
             base_name = "_mm256_insertf128_ps";
+            break;
+        case NN_vinsertf32x4:
+            src2_size = XMM_SIZE;
+            is_int = false;
+            is_double = false;
+            base_name.cat_sprnt("_mm%s_insertf32x4_ps", get_size_prefix(dst_size));
+            break;
+        case NN_vinsertf64x4:
+            src2_size = YMM_SIZE;
+            is_int = false;
+            is_double = true;
+            base_name.cat_sprnt("_mm%s_insertf64x4_pd", get_size_prefix(dst_size));
             break;
         case NN_vinserti128:
             dst_size = YMM_SIZE;
@@ -1775,8 +1850,8 @@ merror_t handle_vinsertf128(codegen_t &cdg) {
     uint64 imm = cdg.insn.Op4.value;
 
     AVXIntrinsic icall(&cdg, base_name.c_str());
-    tinfo_t vt_dst = get_type_robust(dst_size, is_int, false);
-    tinfo_t vt_src2 = get_type_robust(src2_size, is_int, false);
+    tinfo_t vt_dst = get_type_robust(dst_size, is_int, is_double);
+    tinfo_t vt_src2 = get_type_robust(src2_size, is_int, is_double);
 
     icall.add_argument_reg(src1, vt_dst);
     icall.add_argument_reg(src2, vt_src2);
@@ -2444,6 +2519,36 @@ merror_t handle_vpmovzx(codegen_t &cdg) {
     // Use actual loaded size for memory operands, XMM_SIZE for registers
     int actual_src_size = src.size > 0 ? src.size : XMM_SIZE;
     tinfo_t ti_src = get_type_robust(actual_src_size, true, false);
+    tinfo_t ti_dst = get_type_robust(dst_size, true, false);
+
+    icall.add_argument_reg(src, ti_src);
+    icall.set_return_reg(d, ti_dst);
+    icall.emit();
+
+    if (dst_size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// vpmovwb/vpmovswb/vpmovuswb - narrow packed words to bytes
+merror_t handle_vpmovwb(codegen_t &cdg) {
+    int dst_size = get_vector_size(cdg.insn.Op1);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    const char *suffix = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vpmovwb: suffix = "cvtepi16_epi8"; break;
+        case NN_vpmovswb: suffix = "cvtsepi16_epi8"; break;
+        case NN_vpmovuswb: suffix = "cvtusepi16_epi8"; break;
+        default: return MERR_INSN;
+    }
+
+    int src_size = src.size > 0 ? src.size : dst_size * 2;
+    qstring iname;
+    iname.cat_sprnt("_mm%s_%s", get_size_prefix(src_size), suffix);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti_src = get_type_robust(src_size, true, false);
     tinfo_t ti_dst = get_type_robust(dst_size, true, false);
 
     icall.add_argument_reg(src, ti_src);

@@ -143,6 +143,8 @@ bool is_bf16_insn(uint16 it);
 
 bool is_fp16_move_insn(uint16 it);
 
+bool is_pmovwb_insn(uint16 it);
+
 bool is_ternary_logic_insn(uint16 it);
 
 bool is_conflict_insn(uint16 it);
