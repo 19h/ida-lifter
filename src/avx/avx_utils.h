@@ -163,6 +163,10 @@ bool is_pclmul_insn(uint16 it);
 
 bool is_aes_insn(uint16 it);
 
+bool is_sha_insn(uint16 it);
+
+bool is_cache_ctrl_insn(uint16 it);
+
 bool is_math_insn(uint16 it);
 
 bool is_packed_math_insn(uint16 it);

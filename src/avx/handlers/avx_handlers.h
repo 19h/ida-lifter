@@ -145,6 +145,10 @@ merror_t handle_v_pclmul(codegen_t &cdg);
 
 merror_t handle_v_aes(codegen_t &cdg);
 
+merror_t handle_v_sha(codegen_t &cdg);
+
+merror_t handle_cache_ctrl(codegen_t &cdg);
+
 merror_t handle_vmov_sh(codegen_t &cdg);
 
 merror_t handle_vmovw(codegen_t &cdg);

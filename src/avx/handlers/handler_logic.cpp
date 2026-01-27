@@ -1188,6 +1188,91 @@ merror_t handle_v_aes(codegen_t &cdg) {
     return MERR_OK;
 }
 
+merror_t handle_v_sha(codegen_t &cdg) {
+    QASSERT(0xA0A32, is_xmm_reg(cdg.insn.Op1));
+
+    uint16 it = cdg.insn.itype;
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t a = reg2mreg(cdg.insn.Op1.reg);
+    AvxOpLoader b(cdg, 1, cdg.insn.Op2);
+
+    const char *iname = nullptr;
+    bool has_imm = false;
+    bool has_third = false;
+
+    switch (it) {
+        case NN_sha1msg1: iname = "_mm_sha1msg1_epu32"; break;
+        case NN_sha1msg2: iname = "_mm_sha1msg2_epu32"; break;
+        case NN_sha1nexte: iname = "_mm_sha1nexte_epu32"; break;
+        case NN_sha1rnds4: iname = "_mm_sha1rnds4_epu32"; has_imm = true; break;
+        case NN_sha256msg1: iname = "_mm_sha256msg1_epu32"; break;
+        case NN_sha256msg2: iname = "_mm_sha256msg2_epu32"; break;
+        case NN_sha256rnds2: iname = "_mm_sha256rnds2_epu32"; has_third = true; break;
+        default: return MERR_INSN;
+    }
+
+    AVXIntrinsic icall(&cdg, iname);
+    tinfo_t ti = get_type_robust(XMM_SIZE, true, false);
+
+    icall.add_argument_reg(a, ti);
+    icall.add_argument_reg(b, ti);
+
+    if (has_third) {
+        AvxOpLoader c(cdg, 2, cdg.insn.Op3);
+        icall.add_argument_reg(c, ti);
+    }
+
+    if (has_imm) {
+        QASSERT(0xA0A33, cdg.insn.Op3.type == o_imm);
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT8);
+    }
+
+    icall.set_return_reg(d, ti);
+    icall.emit();
+    return MERR_OK;
+}
+
+merror_t handle_cache_ctrl(codegen_t &cdg) {
+    const op_t &op = cdg.insn.Op1;
+    if (!is_mem_op(op)) {
+        return MERR_INSN;
+    }
+
+    const char *iname = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_clflushopt: iname = "_mm_clflushopt"; break;
+        case NN_clwb: iname = "_mm_clwb"; break;
+        default: return MERR_INSN;
+    }
+
+    int addr_size = inf_is_64bit() ? 8 : 4;
+    mreg_t addr_reg = mr_none;
+
+    if (op.type == o_mem) {
+        addr_reg = cdg.mba->alloc_kreg(addr_size);
+        mop_t addr_imm;
+        addr_imm.make_number(op.addr, addr_size);
+        mop_t addr_dst;
+        addr_dst.make_reg(addr_reg, addr_size);
+        mop_t empty;
+        cdg.emit(m_mov, &addr_imm, &empty, &addr_dst);
+    } else {
+        addr_reg = cdg.load_effective_address(0);
+    }
+
+    if (addr_reg == mr_none) {
+        return MERR_INSN;
+    }
+
+    tinfo_t ptr_type;
+    ptr_type.create_ptr(tinfo_t(BT_VOID));
+
+    AVXIntrinsic icall(&cdg, iname);
+    icall.add_argument_reg(addr_reg, ptr_type);
+    icall.emit_void();
+    return MERR_OK;
+}
+
 merror_t handle_v_align(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);

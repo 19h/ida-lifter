@@ -119,7 +119,8 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_mask_to_vec_insn(it) || is_conflict_insn(it) ||
                  is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
                  is_popcnt_insn(it) || is_lzcnt_insn(it) || is_gfni_insn(it) ||
-                 is_pclmul_insn(it) || is_aes_insn(it) || is_fp16_move_insn(it) ||
+                 is_pclmul_insn(it) || is_aes_insn(it) || is_sha_insn(it) || is_cache_ctrl_insn(it) ||
+                 is_fp16_move_insn(it) ||
                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
                  is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
@@ -223,6 +224,12 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // AES
         if (is_aes_insn(it)) return handle_v_aes(cdg);
+
+        // SHA
+        if (is_sha_insn(it)) return handle_v_sha(cdg);
+
+        // Cache control
+        if (is_cache_ctrl_insn(it)) return handle_cache_ctrl(cdg);
 
         // scalar math (add/sub/mul/div)
         if (it == NN_vaddss || it == NN_vsubss || it == NN_vmulss || it == NN_vdivss)

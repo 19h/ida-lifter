@@ -259,10 +259,10 @@ bool is_expand_insn(uint16 it) {
 }
 
 bool is_fma_insn(uint16 it) {
-    return (it >= NN_vfmadd132ps && it <= NN_vfmadd231ss) ||
-           (it >= NN_vfmsub132ps && it <= NN_vfmsub231ss) ||
-           (it >= NN_vfnmadd132ps && it <= NN_vfnmadd231ss) ||
-           (it >= NN_vfnmsub132ps && it <= NN_vfnmsub231ss);
+    return (it >= NN_vfmadd132pd && it <= NN_vfmadd231ss) ||
+           (it >= NN_vfmsub132pd && it <= NN_vfmsub231ss) ||
+           (it >= NN_vfnmadd132pd && it <= NN_vfnmadd231ss) ||
+           (it >= NN_vfnmsub132pd && it <= NN_vfnmsub231ss);
 }
 
 bool is_ifma_insn(uint16 it) {
@@ -308,6 +308,15 @@ bool is_pclmul_insn(uint16 it) {
 
 bool is_aes_insn(uint16 it) {
     return it == NN_vaesenc || it == NN_vaesenclast || it == NN_vaesdec || it == NN_vaesdeclast;
+}
+
+bool is_sha_insn(uint16 it) {
+    return it == NN_sha1msg1 || it == NN_sha1msg2 || it == NN_sha1nexte || it == NN_sha1rnds4 ||
+           it == NN_sha256msg1 || it == NN_sha256msg2 || it == NN_sha256rnds2;
+}
+
+bool is_cache_ctrl_insn(uint16 it) {
+    return it == NN_clflushopt || it == NN_clwb;
 }
 
 bool is_math_insn(uint16 it) {
