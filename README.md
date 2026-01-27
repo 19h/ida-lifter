@@ -5,12 +5,13 @@
 ---
 
 <h5 align="center">
- lifter is a Hex-Rays microcode filter that lifts AVX/AVX2/AVX-512/AVX10 instructions to Intel intrinsics.<br/>
- Where IDA shows opaque <code>__asm</code> blocks, lifter emits readable <code>_mm512_mask_add_ps</code> calls.<br/>
+ lifter is a Hex-Rays microcode filter that lifts AVX/AVX2/AVX-512/AVX10 and VMX/VT-x instructions to intrinsics.<br/>
+ Where IDA shows opaque <code>__asm</code> blocks, lifter emits readable <code>_mm512_mask_add_ps</code> and <code>__vmread</code> calls.<br/>
  Hundreds of instruction forms transformed. Zero manual annotation required.<br/>
 <br/>
  Scalar operations compile to native FP microcode for optimal decompiler output.<br/>
  Masked EVEX (merge/zero), FP16/BF16, gather/scatter, and permute ops lift to their documented intrinsic forms.<br/>
+ VMX virtualization instructions become readable function calls.<br/>
 The SIMD becomes legible. The algorithms become obvious.
 </h5>
 
@@ -35,6 +36,7 @@ __asm { vmovups ymmword ptr [rdx], ymm0 }
 - **FP16/BF16/IFMA/VNNI coverage** including scalar FP16 (sh) and complex FP16 (fcmul/fmadd)
 - **ZMM memory operands + vector stores** supported via UDT-flagged loads and store intrinsics
 - **Scalar ops** use native FP microcode; **vzeroupper** becomes a NOP
+- **VMX/VT-x instructions** lifted to intrinsic-style calls (`__vmxon`, `__vmread`, `__vmwrite`, etc.)
 - **Inline/outlining toggle** actions in Hex-Rays pseudocode context menus
 
 ## Supported Instructions
@@ -62,6 +64,40 @@ __asm { vmovups ymmword ptr [rdx], ymm0 }
 | **Cache control** | clflushopt, clwb |
 
 Most instruction families above also lift AVX-512VL masked merge/zero forms; opmask operands appear as immediates (k1 -> 1) because Hex-Rays doesn't expose k-registers in microcode.
+
+## VMX/VT-x Instructions
+
+The VMX lifter component handles Intel virtualization instructions:
+
+| Instruction | Lifted To | Description |
+|-------------|-----------|-------------|
+| `vmxon [mem]` | `__vmxon(ptr)` | Enter VMX operation |
+| `vmxoff` | `__vmxoff()` | Leave VMX operation |
+| `vmcall` | `__vmcall()` | Call VM monitor |
+| `vmlaunch` | `__vmlaunch()` | Launch virtual machine |
+| `vmresume` | `__vmresume()` | Resume virtual machine |
+| `vmptrld [mem]` | `__vmptrld(ptr)` | Load VMCS pointer |
+| `vmptrst [mem]` | `__vmptrst(ptr)` | Store VMCS pointer |
+| `vmclear [mem]` | `__vmclear(ptr)` | Clear VMCS |
+| `vmread dst, enc` | `__vmread(&dst, enc)` | Read VMCS field |
+| `vmwrite enc, src` | `__vmwrite(enc, src)` | Write VMCS field |
+| `invept type, m128` | `__invept(type, desc)` | Invalidate EPT entries |
+| `invvpid type, m128` | `__invvpid(type, desc)` | Invalidate VPID entries |
+| `vmfunc` | `__vmfunc()` | VM function call |
+
+**VMX Before & After:**
+
+```c
+// Without plugin:
+__asm { vmxon   [rbp+var_10] }
+__asm { vmread  [rbp+var_10], rdi }
+__asm { vmwrite rdi, rsi }
+
+// With plugin:
+__vmxon(&v4);
+__vmread(&v5, encoding);
+__vmwrite(encoding, value);
+```
 
 ## Example Output
 
@@ -258,7 +294,7 @@ src/
 │   ├── lifter_plugin.cpp      # Plugin entry + popup integration
 │   └── component_registry.cpp # Component registration
 ├── avx/
-│   ├── avx_lifter.cpp      # Main filter (match/apply dispatch)
+│   ├── avx_lifter.cpp      # AVX microcode filter (match/apply dispatch)
 │   ├── avx_intrinsic.cpp   # Intrinsic call builder
 │   ├── avx_helpers.cpp     # Operand loading, masking, store helpers
 │   ├── avx_types.cpp       # Vector type synthesis (__m128, __m256, __m512)
@@ -269,6 +305,8 @@ src/
 │       ├── handler_math.cpp  # Arithmetic, FMA, FP16/BF16/IFMA/VNNI
 │       ├── handler_logic.cpp # Bitwise, shifts, permutes, masks
 │       └── handler_cvt.cpp   # Conversions, extends
+├── vmx/
+│   └── vmx_lifter.cpp      # VMX/VT-x microcode filter
 ├── inline/
 │   └── inline_component.cpp  # Inline/outlining actions in pseudocode
 └── common/

@@ -32,4 +32,5 @@ ida_add_plugin(lifter
     src/avx/handlers/handler_math.cpp
     src/avx/handlers/handler_logic.cpp
     src/inline/inline_component.cpp
+    src/vmx/vmx_lifter.cpp
 )
