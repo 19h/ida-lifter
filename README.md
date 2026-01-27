@@ -288,6 +288,74 @@ src/
 | 50801 | FP flag on integer opcode | Use m_fadd not m_add for floats |
 | 50920 | Size mismatch across blocks | Zero-extend scalars to match type size |
 
+### Lifter QASSERT IDs (0xAxxxx)
+
+These are internal lifter assertion IDs used in `QASSERT(...)`. If you see an `INTERR` or assert with one of these values, it usually means a handler precondition failed. Decimal values are included because IDA often reports errors in decimal.
+
+| Error (hex/dec) | File | Description |
+|---------------|------|-------------|
+| 0xA0300 (656128) | `src/avx/handlers/handler_mov.cpp` | handle_vmov_ss_sd: expects a memory source in Op2 (scalar load form). |
+| 0xA0301 (656129) | `src/avx/handlers/handler_mov.cpp` | handle_vmov_ss_sd: expects a memory destination in Op1 and XMM source in Op2 (scalar store form). |
+| 0xA0302 (656130) | `src/avx/handlers/handler_mov.cpp` | handle_vmov_ss_sd: expects Op1/Op2/Op3 to be XMM registers (three-operand form). |
+| 0xA0303 (656131) | `src/avx/handlers/handler_mov.cpp` | handle_vmov: expects Op2 to be an XMM register (register source). |
+| 0xA0306 (656134) | `src/avx/handlers/handler_mov.cpp` | handle_vmov_sh: expects Op1/Op2 to be XMM registers (scalar FP16 move). |
+| 0xA0310 (656144) | `src/avx/handlers/handler_mov.cpp` | handle_v_mov_ps_dq: expects a memory source in Op2 (mem→reg path). |
+| 0xA0400 (656384) | `src/avx/handlers/handler_logic.cpp` | handle_v_bitwise: expects Op1/Op2 to be vector registers. |
+| 0xA0401 (656385) | `src/avx/handlers/handler_logic.cpp` | handle_v_bitwise: unexpected opcode reached default switch case. |
+| 0xA0402 (656386) | `src/avx/handlers/handler_logic.cpp` | handle_v_rotate: expects an immediate control in Op3. |
+| 0xA0410 (656400) | `src/avx/handlers/handler_logic.cpp` | handle_v_shift_double: expects an immediate control in Op4. |
+| 0xA0500 (656640) | `src/avx/handlers/handler_math.cpp` | handle_v_math_ss_sd: expects Op1/Op2 to be AVX registers (scalar FP math). |
+| 0xA0501 (656641) | `src/avx/handlers/handler_math.cpp` | handle_v_math_p: expects Op1/Op2 to be vector registers (packed math). |
+| 0xA0502 (656642) | `src/avx/handlers/handler_math.cpp` | handle_v_math_p: unexpected opcode reached default switch case. |
+| 0xA0503 (656643) | `src/avx/handlers/handler_math.cpp` | handle_v_minmax_ss_sd: expects Op1/Op2 to be XMM registers (scalar min/max). |
+| 0xA0504 (656644) | `src/avx/handlers/handler_math.cpp` | handle_v_hmath: expects Op1/Op2 to be vector registers (horizontal math). |
+| 0xA0505 (656645) | `src/avx/handlers/handler_math.cpp` | handle_v_dot: expects Op1/Op2 to be vector registers (dot product). |
+| 0xA0506 (656646) | `src/avx/handlers/handler_math.cpp` | handle_v_dot: expects an immediate control in Op4. |
+| 0xA0507 (656647) | `src/avx/handlers/handler_math.cpp` | handle_vround: expects an immediate control in Op3. |
+| 0xA0600 (656896) | `src/avx/handlers/handler_math.cpp` | handle_vsqrtss: expects Op1/Op2 to be XMM registers (scalar sqrt). |
+| 0xA0601 (656897) | `src/avx/handlers/handler_logic.cpp` | handle_vshufps: expects an immediate control in Op4. |
+| 0xA0602 (656898) | `src/avx/handlers/handler_logic.cpp` | handle_vshufpd: expects an immediate control in Op4. |
+| 0xA0603 (656899) | `src/avx/handlers/handler_logic.cpp` | handle_vpermpd: expects an immediate control in Op3. |
+| 0xA0604 (656900) | `src/avx/handlers/handler_logic.cpp` | handle_vblend_imm_ps_pd: expects an immediate control in Op4. |
+| 0xA0605 (656901) | `src/avx/handlers/handler_logic.cpp` | handle_v_shuffle_int: expects an immediate control in Op3. |
+| 0xA0607 (656903) | `src/avx/handlers/handler_logic.cpp` | handle_v_align: expects an immediate control in Op4. |
+| 0xA0608 (656904) | `src/avx/handlers/handler_logic.cpp` | handle_v_ternary_logic: expects an immediate control in Op4. |
+| 0xA0608 (656904) | `src/avx/handlers/handler_math.cpp` | handle_vrcp_rsqrt_ss: expects Op1/Op2 to be XMM registers (scalar rcp/rsqrt). |
+| 0xA0609 (656905) | `src/avx/handlers/handler_math.cpp` | handle_vround_ss_sd: expects Op1/Op2 to be XMM registers (scalar round). |
+| 0xA060B (656907) | `src/avx/handlers/handler_math.cpp` | handle_vsqrt_sh: expects Op1/Op2 to be XMM registers (scalar FP16 sqrt). |
+| 0xA0610 (656912) | `src/avx/handlers/handler_logic.cpp` | handle_vblend_int: expects an immediate control in Op4. |
+| 0xA0610 (656912) | `src/avx/handlers/handler_math.cpp` | handle_vround_ss_sd: expects an immediate control in Op4. |
+| 0xA0611 (656913) | `src/avx/handlers/handler_math.cpp` | handle_vsqrtsd: expects Op1/Op2 to be XMM registers (scalar sqrt double). |
+| 0xA0620 (656928) | `src/avx/handlers/handler_math.cpp` | handle_v_getmant: expects an immediate control in Op3. |
+| 0xA0620 (656928) | `src/avx/handlers/handler_math.cpp` | handle_v_getmant: expects an immediate control in Op4. |
+| 0xA0621 (656929) | `src/avx/handlers/handler_math.cpp` | handle_v_fixupimm: expects an immediate control in Op4. |
+| 0xA0622 (656930) | `src/avx/handlers/handler_math.cpp` | handle_v_range: expects an immediate control in Op4. |
+| 0xA0623 (656931) | `src/avx/handlers/handler_math.cpp` | handle_v_reduce: expects an immediate control in Op3. |
+| 0xA0623 (656931) | `src/avx/handlers/handler_math.cpp` | handle_v_reduce: expects an immediate control in Op4. |
+| 0xA0700 (657152) | `src/avx/handlers/handler_logic.cpp` | handle_vperm2f128_i128: expects Op1/Op2 to be YMM registers. |
+| 0xA0700 (657152) | `src/avx/handlers/handler_math.cpp` | handle_v_math_ph: expects Op1/Op2 to be vector registers (packed FP16 math). |
+| 0xA0701 (657153) | `src/avx/handlers/handler_logic.cpp` | handle_vbroadcastf128_fp: expects YMM destination in Op1 and memory source in Op2. |
+| 0xA0701 (657153) | `src/avx/handlers/handler_logic.cpp` | handle_vperm2f128_i128: expects an immediate control in Op4. |
+| 0xA0701 (657153) | `src/avx/handlers/handler_math.cpp` | handle_v_math_sh: expects Op1/Op2 to be XMM registers (scalar FP16 math). |
+| 0xA0703 (657155) | `src/avx/handlers/handler_logic.cpp` | handle_vbroadcasti128_int: expects YMM destination in Op1 and memory source in Op2. |
+| 0xA0704 (657156) | `src/avx/handlers/handler_logic.cpp` | handle_vbroadcast_x4: expects a vector destination in Op1. |
+| 0xA0800 (657408) | `src/avx/handlers/handler_logic.cpp` | handle_vmaskmov_ps_pd: expects a memory operand in Op3 (load form). |
+| 0xA0801 (657409) | `src/avx/handlers/handler_logic.cpp` | handle_vmaskmov_ps_pd: expects memory destination in Op1 and AVX reg sources in Op2/Op3 (store form). |
+| 0xA0900 (657664) | `src/avx/handlers/handler_logic.cpp` | handle_vextractf128: expects an immediate control in Op3. |
+| 0xA0902 (657666) | `src/avx/handlers/handler_logic.cpp` | handle_vextractf128: expects a memory destination in Op1. |
+| 0xA0910 (657680) | `src/avx/handlers/handler_logic.cpp` | handle_vinsertf128: expects an immediate control in Op4. |
+| 0xA0A00 (657920) | `src/avx/handlers/handler_logic.cpp` | handle_vmovnt: expects a memory source in Op2 (vmovntdqa load). |
+| 0xA0A01 (657921) | `src/avx/handlers/handler_logic.cpp` | handle_vmovnt: expects a memory destination in Op1 (non-temporal store). |
+| 0xA0A02 (657922) | `src/avx/handlers/handler_logic.cpp` | handle_v_mask_to_vec: expects Op2 to be a k-register or encoded k-reg (o_kreg/o_reg). |
+| 0xA0A10 (657936) | `src/avx/handlers/handler_logic.cpp` | handle_vpinsert: expects an immediate control in Op4. |
+| 0xA0A20 (657952) | `src/avx/handlers/handler_logic.cpp` | handle_vpslldq_vpsrldq: expects an immediate shift count in Op3. |
+| 0xA0A30 (657968) | `src/avx/handlers/handler_logic.cpp` | handle_v_gfni: expects an immediate control in Op4. |
+| 0xA0A30 (657968) | `src/avx/handlers/handler_logic.cpp` | handle_vextractps: expects an immediate control in Op3. |
+| 0xA0A31 (657969) | `src/avx/handlers/handler_logic.cpp` | handle_v_pclmul: expects an immediate control in Op4. |
+| 0xA0A32 (657970) | `src/avx/handlers/handler_logic.cpp` | handle_v_sha: expects Op1 to be an XMM register. |
+| 0xA0A33 (657971) | `src/avx/handlers/handler_logic.cpp` | handle_v_sha: expects an immediate control in Op3 (sha1rnds4 imm8). |
+| 0xA0A40 (657984) | `src/avx/handlers/handler_logic.cpp` | handle_vinsertps: expects an immediate control in Op4. |
+
 ## Not Lifted (Fall Back to IDA)
 
 These instructions are explicitly not handled and use IDA's default behavior:
