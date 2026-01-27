@@ -57,7 +57,9 @@ __asm { vmovups ymmword ptr [rdx], ymm0 }
 | **Approx/round** | vrcp*/vrsqrt*, vrcp14*/vrsqrt14*, vround*/vrndscale*, vgetexp*, vgetmant*, vfixupimm*, vscalef*, vrange*, vreduce* |
 | **Gather/scatter** | vgatherd*/q*, vpgather*, vscatterd*/q*, vpscatter* |
 | **Compress/expand** | vcompressps/pd, vexpandps/pd, vpcompressb/w/d/q, vpexpandb/w/d/q |
-| **Mask/misc** | vmovmskps/pd, vpmovmskb, vpmovm2b/w/d/q, vpsadbw/vmpsadbw, vpopcnt*, vplzcnt*, vpconflict*, GFNI, AES, VPCLMULQDQ, vzeroupper |
+| **Mask/misc** | vmovmskps/pd, vpmovmskb, vpmovm2b/w/d/q, vpsadbw/vmpsadbw, vpopcnt*, vplzcnt*, vpconflict*, vzeroupper |
+| **Crypto** | GFNI, AES, VPCLMULQDQ, SHA1/SHA256 |
+| **Cache control** | clflushopt, clwb |
 
 Most instruction families above also lift AVX-512VL masked merge/zero forms; opmask operands appear as immediates (k1 -> 1) because Hex-Rays doesn't expose k-registers in microcode.
 
