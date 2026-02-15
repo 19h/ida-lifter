@@ -12,8 +12,17 @@ AVX Math Handlers
 merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     QASSERT(0xA0500, is_avx_reg(cdg.insn.Op1) && is_avx_reg(cdg.insn.Op2));
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    // Some VEX scalar forms may not expose Op3 when it aliases destination.
+    // Treat missing Op3 as implicit old destination.
+    mreg_t r;
+    if (cdg.insn.Op3.type == o_void) {
+        r = d;
+    } else {
+        AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        r = r_in;
+    }
 
     // Determine microcode opcode (use FP opcodes for floating-point operations)
     mcode_t opcode;
@@ -39,13 +48,24 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
     // - xmm1[127:32] = xmm2[127:32] (copy upper bits from first source)
     // - xmm1[255:128] = 0 (VEX zeros upper bits)
 
+    // Preserve Op3 if it aliases destination and Op2 is different.
+    // Example: vaddsd xmm0, xmm1, xmm0
+    mreg_t r_tmp = mr_none;
+    if (r == d && l != d) {
+        r_tmp = cdg.mba->alloc_kreg(elem_size);
+        if (r_tmp == mr_none) {
+            return MERR_INSN;
+        }
+        cdg.emit(m_mov, elem_size, r, 0, r_tmp, 0);
+        r = r_tmp;
+    }
+
     // First, copy the full XMM from source 2 to dest (preserves upper bits)
     if (l != d) {
         cdg.emit(m_mov, XMM_SIZE, l, 0, d, 0);
     }
 
     // Then do the scalar operation on the low element
-    mreg_t r = r_in;
     mop_t l_mop(l, elem_size);
     mop_t r_mop(r, elem_size);
     mop_t d_mop(d, elem_size);

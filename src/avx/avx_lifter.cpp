@@ -56,7 +56,7 @@ struct ida_local AVXLifter : microcode_filter_t {
                             is_shuffle_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
                             is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
                             is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
-                            is_scalar_math(it) || is_scalar_minmax(it) || is_scalar_move(it) ||
+                            is_scalar_minmax(it) || is_scalar_move(it) ||
                             is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
                             is_gather_insn(it) || is_scatter_insn(it) || is_addsub_insn(it) ||
                             is_approx_insn(it) || is_round_insn(it) ||

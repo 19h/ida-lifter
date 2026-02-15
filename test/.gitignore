@@ -16,6 +16,7 @@ avx_*
 decompiler_ref
 shooter
 !shooter/
+!integration/test_scalar.c
 
 # IDA Pro files
 *.id0
