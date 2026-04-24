@@ -149,6 +149,28 @@ void AVXIntrinsic::add_argument_reg(mreg_t mreg, type_t bt) {
     add_argument_reg(mreg, tinfo_t(bt));
 }
 
+void AVXIntrinsic::add_argument_mop(const mop_t &arg, const tinfo_t &arg_ti) {
+    int ti_size = (int) arg_ti.get_size();
+    mcallarg_t ca(arg);
+    ca.type = arg_ti;
+    ca.size = (decltype(ca.size)) ti_size;
+
+    if (ca.size > 8) {
+        ca.set_udt();
+    }
+
+    int align = ca.size;
+    if (align < 8) align = 8;
+    if (align > 64) align = 64;
+
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
+    call_info->args.add(ca);
+    call_info->solid_args++;
+}
+
 void AVXIntrinsic::add_argument_reg_with_size(mreg_t mreg, int size) {
     // Create appropriate integer type for the given size (used for pointers)
     type_t bt;

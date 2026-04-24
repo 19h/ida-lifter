@@ -1494,9 +1494,18 @@ merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
     }
     AVXIntrinsic icall(&cdg, bcast);
     tinfo_t vt = get_type_robust(size, false, is_double);
-    icall.set_return_reg(d, vt);
+    mreg_t ret = d;
+    if (size == ZMM_SIZE) {
+        ret = cdg.mba->alloc_kreg(size, false);
+        if (ret == mr_none) return MERR_INSN;
+    }
+    icall.set_return_reg(ret, vt);
     icall.add_argument_reg(scalar, is_double ? BTF_DOUBLE : BT_FLOAT);
     icall.emit();
+
+    if (size == ZMM_SIZE && !emit_zmm_write_call(cdg, cdg.insn.Op1, ret, vt)) {
+        return MERR_INSN;
+    }
 
     cdg.mba->free_kreg(scalar, scalar_size);
     if (size == XMM_SIZE) clear_upper(cdg, d);

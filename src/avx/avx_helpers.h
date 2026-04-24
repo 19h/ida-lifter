@@ -13,6 +13,8 @@
 
 #include "avx_types.h"
 
+struct AVXIntrinsic;
+
 // Operand analysis
 bool is_mem_op(const op_t &op);
 
@@ -72,9 +74,18 @@ mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size = ZMM_SIZE);
 // Works for XMM (16-byte), YMM (32-byte), and ZMM (64-byte) sizes.
 // Returns true on success, false on failure.
 bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size);
+bool emit_vector_store_mop(codegen_t &cdg, int opidx, const mop_t &src_mop, const tinfo_t &vec_type, int vec_size);
 
 // Legacy name for backwards compatibility
 bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size = ZMM_SIZE);
+
+// ZMM processor registers are not supported by Hex-Rays. These helpers model
+// them with side-effecting helper calls while keeping 64-byte values in kregs.
+int get_zmm_reg_index(const op_t &op);
+minsn_t *make_zmm_read_call(codegen_t &cdg, int zmm_index, const tinfo_t &ti);
+bool add_zmm_read_arg(codegen_t &cdg, AVXIntrinsic &icall, const op_t &op, const tinfo_t &ti);
+bool emit_zmm_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const tinfo_t &ti);
+bool emit_zmm_write_mop(codegen_t &cdg, const op_t &op, const mop_t &value, const tinfo_t &ti);
 
 // AVX-512 masking support
 // Check if instruction has opmask in Op6 (EVEX encoding stores mask in Op6)

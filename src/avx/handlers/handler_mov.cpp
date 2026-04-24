@@ -448,6 +448,26 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     if (is_vector_reg(cdg.insn.Op1)) {
         // LOAD case: vmovaps reg, mem/reg
         size = get_vector_size(cdg.insn.Op1);
+        tinfo_t vec_type = get_type_robust(size, is_int, is_double);
+
+        if (size == ZMM_SIZE) {
+            if (is_vector_reg(cdg.insn.Op2)) {
+                mop_t read_mop;
+                int src_index = get_zmm_reg_index(cdg.insn.Op2);
+                if (src_index < 0) return MERR_INSN;
+                read_mop.make_insn(make_zmm_read_call(cdg, src_index, vec_type));
+                read_mop.size = size;
+                read_mop.set_udt();
+                if (!emit_zmm_write_mop(cdg, cdg.insn.Op1, read_mop, vec_type)) return MERR_INSN;
+            } else {
+                QASSERT(0xA0310, is_mem_op(cdg.insn.Op2));
+                mreg_t loaded = load_operand_udt(cdg, 1, size);
+                if (loaded == mr_none) return MERR_INSN;
+                if (!emit_zmm_write_call(cdg, cdg.insn.Op1, loaded, vec_type)) return MERR_INSN;
+            }
+            return MERR_OK;
+        }
+
         mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
 
         if (is_vector_reg(cdg.insn.Op2)) {
@@ -496,6 +516,21 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
     }
 
     size = get_vector_size(cdg.insn.Op2);
+    if (size == ZMM_SIZE) {
+        tinfo_t vec_type = get_type_robust(size, is_int, is_double);
+        int src_index = get_zmm_reg_index(cdg.insn.Op2);
+        if (src_index < 0) return MERR_INSN;
+
+        mop_t read_mop;
+        read_mop.make_insn(make_zmm_read_call(cdg, src_index, vec_type));
+        read_mop.size = size;
+        read_mop.set_udt();
+        if (!emit_vector_store_mop(cdg, 0, read_mop, vec_type, size)) {
+            return MERR_INSN;
+        }
+        return MERR_OK;
+    }
+
     mreg_t src = reg2mreg(cdg.insn.Op2.reg);
 
     // Use store_operand_hack for stores (like other handlers do)

@@ -197,7 +197,7 @@ mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size) {
 // - _mm_storeu_ps / _mm256_storeu_ps / _mm512_storeu_ps
 //
 // This approach works for all memory operand types (global, stack, heap).
-bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size) {
+bool emit_vector_store_mop(codegen_t &cdg, int opidx, const mop_t &src_mop, const tinfo_t &vec_type, int vec_size) {
     const op_t &op = opidx == 0 ? cdg.insn.Op1 : (opidx == 1 ? cdg.insn.Op2 : cdg.insn.Op3);
     int addr_size = inf_is_64bit() ? 8 : 4;
 
@@ -235,13 +235,10 @@ bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size)
     tinfo_t ptr_type;
     ptr_type.create_ptr(tinfo_t(BT_VOID));
 
-    // Create vector type for the value argument
-    tinfo_t vec_type = get_vector_type(vec_size, false, false);
-
     // Build the intrinsic call (void return)
     AVXIntrinsic icall(&cdg, iname);
     icall.add_argument_reg(addr_reg, ptr_type);
-    icall.add_argument_reg(src_mreg, vec_type);
+    icall.add_argument_mop(src_mop, vec_type);
     icall.emit_void();
 
     // Don't free addr_reg - it's used in the emitted instruction
@@ -249,9 +246,93 @@ bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size)
     return true;
 }
 
+bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size) {
+    tinfo_t vec_type = get_vector_type(vec_size, false, false);
+    mop_t src_mop(src_mreg, vec_size);
+    if (vec_size > 8) {
+        src_mop.set_udt();
+    }
+    return emit_vector_store_mop(cdg, opidx, src_mop, vec_type, vec_size);
+}
+
 // Legacy name for backwards compatibility
 bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size) {
     return emit_vector_store(cdg, opidx, src_mreg, zmm_size);
+}
+
+int get_zmm_reg_index(const op_t &op) {
+    if (!is_zmm_reg(op) || op.reg < R_zmm0 || op.reg > R_zmm31) return -1;
+    return op.reg - R_zmm0;
+}
+
+static void add_helper_imm_arg(mcallinfo_t *call_info, int &stk_off, uint64 value, type_t bt) {
+    tinfo_t ti(bt);
+    int size = (int) ti.get_size();
+    mcallarg_t ca;
+    ca.make_number(value, size);
+    ca.type = ti;
+    ca.size = size;
+
+    int align = size < 8 ? 8 : size;
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
+    call_info->args.add(ca);
+    call_info->solid_args++;
+}
+
+minsn_t *make_zmm_read_call(codegen_t &cdg, int zmm_index, const tinfo_t &ti) {
+    mcallinfo_t *call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
+    new(call_info) mcallinfo_t();
+    call_info->cc = CM_CC_FASTCALL;
+    call_info->flags = FCI_SPLOK | FCI_FINAL | FCI_PROP;
+    call_info->return_type = ti;
+
+    int stk_off = 0;
+    add_helper_imm_arg(call_info, stk_off, (uint64) zmm_index, BT_INT32);
+
+    minsn_t *call_insn = (minsn_t *) qalloc(sizeof(minsn_t));
+    new(call_insn) minsn_t(cdg.insn.ea);
+    call_insn->opcode = m_call;
+    call_insn->l.make_helper("__lifter_zmm_read");
+    call_insn->d.t = mop_f;
+    call_insn->d.f = call_info;
+    call_insn->d.size = (int) ti.get_size();
+    call_insn->d.set_udt();
+    return call_insn;
+}
+
+bool add_zmm_read_arg(codegen_t &cdg, AVXIntrinsic &icall, const op_t &op, const tinfo_t &ti) {
+    int zmm_index = get_zmm_reg_index(op);
+    if (zmm_index < 0) return false;
+
+    mop_t read_mop;
+    read_mop.make_insn(make_zmm_read_call(cdg, zmm_index, ti));
+    read_mop.size = (int) ti.get_size();
+    read_mop.set_udt();
+    icall.add_argument_mop(read_mop, ti);
+    return true;
+}
+
+bool emit_zmm_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const tinfo_t &ti) {
+    int zmm_index = get_zmm_reg_index(op);
+    if (zmm_index < 0) return false;
+
+    AVXIntrinsic write(&cdg, "__lifter_zmm_write");
+    write.add_argument_imm((uint64) zmm_index, BT_INT32);
+    write.add_argument_reg(value_reg, ti);
+    return write.emit_void() != nullptr;
+}
+
+bool emit_zmm_write_mop(codegen_t &cdg, const op_t &op, const mop_t &value, const tinfo_t &ti) {
+    int zmm_index = get_zmm_reg_index(op);
+    if (zmm_index < 0) return false;
+
+    AVXIntrinsic write(&cdg, "__lifter_zmm_write");
+    write.add_argument_imm((uint64) zmm_index, BT_INT32);
+    write.add_argument_mop(value, ti);
+    return write.emit_void() != nullptr;
 }
 
 // Store operand - handles all sizes including ZMM (64-byte)

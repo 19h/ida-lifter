@@ -413,10 +413,6 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     // Note: ZMM memory operands are now handled via emit_zmm_load/emit_zmm_store
     // which bypass cdg.load_operand() and manually emit m_ldx/m_stx with UDT flags
 
-    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
-    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-
     const char *fmt = nullptr;
     bool is_int = false;
     bool is_double = false;
@@ -653,6 +649,44 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     AVXIntrinsic icall(&cdg, iname.c_str());
 
     tinfo_t ti = get_type_robust(size, is_int, is_double);
+
+    if (size == ZMM_SIZE) {
+        if (mask.has_mask) {
+            if (!mask.is_zeroing && !add_zmm_read_arg(cdg, icall, cdg.insn.Op1, ti)) {
+                return MERR_INSN;
+            }
+            icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+        }
+
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, ti)) {
+            return MERR_INSN;
+        }
+
+        if (is_mem_op(cdg.insn.Op3)) {
+            AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+            if (r.reg == mr_none) return MERR_INSN;
+            icall.add_argument_reg(r, ti);
+        } else if (is_zmm_reg(cdg.insn.Op3)) {
+            if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op3, ti)) {
+                return MERR_INSN;
+            }
+        } else {
+            mreg_t r = reg2mreg(cdg.insn.Op3.reg);
+            if (r == mr_none) return MERR_INSN;
+            icall.add_argument_reg(r, ti);
+        }
+
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, ti);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, ti)) return MERR_INSN;
+        return MERR_OK;
+    }
+
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    mreg_t l = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     // For merge-masking: src, k, a, b -> result
     // For zero-masking:  k, a, b -> result
