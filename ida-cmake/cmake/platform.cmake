@@ -105,7 +105,19 @@ endif()
 
 # Construct library directory (always EA64)
 set(IDA_EA_SIZE "64")
-set(IDA_LIB_SUFFIX "${IDA_ARCH}_${IDA_PLATFORM_NAME}_${IDA_COMPILER}_64")
+set(IDA_LIB_SUFFIX_MODERN "${IDA_ARCH}_${IDA_PLATFORM_NAME}_64")
+set(IDA_LIB_SUFFIX_LEGACY "${IDA_ARCH}_${IDA_PLATFORM_NAME}_${IDA_COMPILER}_64")
+
+# IDA SDK 9.3.1+ removed compiler names from lib directory names
+# (e.g. x64_linux_64 instead of x64_linux_gcc_64). Prefer the modern
+# layout when present, but keep the legacy layout for older local SDKs.
+if(EXISTS "${IDASDK}/lib/${IDA_LIB_SUFFIX_MODERN}")
+    set(IDA_LIB_SUFFIX "${IDA_LIB_SUFFIX_MODERN}")
+elseif(EXISTS "${IDASDK}/lib/${IDA_LIB_SUFFIX_LEGACY}")
+    set(IDA_LIB_SUFFIX "${IDA_LIB_SUFFIX_LEGACY}")
+else()
+    set(IDA_LIB_SUFFIX "${IDA_LIB_SUFFIX_MODERN}")
+endif()
 set(IDA_LIB_DIR "${IDASDK}/lib/${IDA_LIB_SUFFIX}")
 
 # Platform-specific library names (using consistent platform detection)
