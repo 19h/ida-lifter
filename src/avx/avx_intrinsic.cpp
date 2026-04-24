@@ -15,7 +15,7 @@ AVXIntrinsic::AVXIntrinsic(codegen_t *cdg_, const char *name)
     // Allocate call_info with IDA's allocator
     call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
     new(call_info) mcallinfo_t();
-    call_info->cc = CM_CC_FASTCALL;
+    call_info->cc = CM_CC_SPECIAL;
     call_info->flags = FCI_SPLOK | FCI_FINAL | FCI_PROP;
     call_info->return_type = tinfo_t(BT_VOID); // Default to void
 

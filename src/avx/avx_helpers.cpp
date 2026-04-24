@@ -285,7 +285,7 @@ static void add_helper_imm_arg(mcallinfo_t *call_info, int &stk_off, uint64 valu
 minsn_t *make_zmm_read_call(codegen_t &cdg, int zmm_index, const tinfo_t &ti) {
     mcallinfo_t *call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
     new(call_info) mcallinfo_t();
-    call_info->cc = CM_CC_FASTCALL;
+    call_info->cc = CM_CC_SPECIAL;
     call_info->flags = FCI_SPLOK | FCI_FINAL | FCI_PROP;
     call_info->return_type = ti;
 

@@ -2,8 +2,10 @@
 #include <hexrays.hpp>
 #include <intel.hpp>
 #include <bytes.hpp>
+#include <funcs.hpp>
 #include <name.hpp>
 #include <typeinf.hpp>
+#include <ua.hpp>
 #include "../common/warn_on.h"
 #include "../plugin/component_registry.h"
 #include "avx_types.h"
@@ -19,6 +21,62 @@
 // which bypass cdg.load_operand() and manually emit m_ldx/m_stx with UDT flags.
 // The has_zmm_memory_operand check has been removed.
 
+static bool insn_uses_zmm(const insn_t &insn) {
+    return is_zmm_reg(insn.Op1) || is_zmm_reg(insn.Op2) || is_zmm_reg(insn.Op3) ||
+           is_zmm_reg(insn.Op4) || is_zmm_reg(insn.Op5) || is_zmm_reg(insn.Op6);
+}
+
+static ea_t get_direct_call_target(const insn_t &insn) {
+    if (insn.itype != NN_call) return BADADDR;
+    const op_t &op = insn.Op1;
+    if (op.type == o_near || op.type == o_far) return op.addr;
+    return BADADDR;
+}
+
+static bool function_uses_zmm(ea_t ea) {
+    func_t *pfn = get_func(ea);
+    if (pfn == nullptr) return false;
+
+    for (ea_t item = pfn->start_ea; item < pfn->end_ea; item = next_head(item, pfn->end_ea)) {
+        insn_t insn;
+        if (decode_insn(&insn, item) <= 0) continue;
+        if (insn_uses_zmm(insn)) return true;
+    }
+    return false;
+}
+
+static bool is_zmm_direct_call(const insn_t &insn) {
+    ea_t target = get_direct_call_target(insn);
+    return target != BADADDR && function_uses_zmm(target);
+}
+
+static void force_voidarg_type(ea_t target) {
+    func_type_data_t ftd;
+    ftd.rettype = tinfo_t(BT_VOID);
+    ftd.set_cc(CM_CC_VOIDARG);
+
+    tinfo_t tif;
+    if (tif.create_func(ftd)) {
+        apply_tinfo(target, tif, TINFO_DEFINITE);
+    }
+}
+
+static merror_t handle_zmm_direct_call(codegen_t &cdg) {
+    ea_t target = get_direct_call_target(cdg.insn);
+    if (target == BADADDR) return MERR_INSN;
+
+    force_voidarg_type(target);
+
+    qstring name;
+    if (!get_func_name(&name, target) || name.empty()) {
+        name.sprnt("sub_%a", target);
+    }
+
+    AVXIntrinsic icall(&cdg, name.c_str());
+    icall.emit_void();
+    return MERR_OK;
+}
+
 //-----------------------------------------------------------------------------
 // The microcode filter
 //-----------------------------------------------------------------------------
@@ -27,6 +85,10 @@ struct ida_local AVXLifter : microcode_filter_t {
     bool match(codegen_t &cdg) override {
         ea_t ea = cdg.insn.ea;
         uint16 it = cdg.insn.itype;
+
+        if (is_zmm_direct_call(cdg.insn)) {
+            return true;
+        }
 
         // Skip k-register manipulation instructions (kmov/kunpck) - emit NOP
         // These instructions IDA can't handle natively
@@ -141,6 +203,10 @@ struct ida_local AVXLifter : microcode_filter_t {
         uint16 it = cdg.insn.itype;
 
         TRACE_ENTER("apply");
+
+        if (is_zmm_direct_call(cdg.insn)) {
+            return handle_zmm_direct_call(cdg);
+        }
 
         // Handle k-register manipulation instructions (kmov/kunpck) by emitting NOP
         if (it >= NN_kmovw && it <= NN_kunpckdq) {

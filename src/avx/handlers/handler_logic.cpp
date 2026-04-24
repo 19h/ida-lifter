@@ -1476,7 +1476,7 @@ merror_t handle_vbroadcast_ss_sd(codegen_t &cdg) {
     // AVX2 allows register source for vbroadcastss/sd.
     // We use load_op_reg_or_mem to handle both memory and register operands.
     AvxOpLoader src(cdg, 1, cdg.insn.Op2);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t d = size == ZMM_SIZE ? mr_none : reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t scalar = cdg.mba->alloc_kreg(scalar_size);
 

@@ -7,7 +7,50 @@ AVX Conversion Handlers
 #include "../avx_helpers.h"
 #include "../avx_intrinsic.h"
 
+#include "../../common/warn_off.h"
+#include <bytes.hpp>
+#include <funcs.hpp>
+#include <ua.hpp>
+#include "../../common/warn_on.h"
+
 #if IDA_SDK_VERSION >= 750
+
+static int get_xmm_reg_index(const op_t &op) {
+    if (!is_xmm_reg(op)) return -1;
+    if (op.reg >= R_xmm0 && op.reg <= R_xmm15) return op.reg - R_xmm0;
+    if (op.reg >= R_xmm16 && op.reg <= R_xmm31) return op.reg - R_xmm16 + 16;
+    return -1;
+}
+
+static bool insn_uses_zmm_reg(const insn_t &insn) {
+    return is_zmm_reg(insn.Op1) || is_zmm_reg(insn.Op2) || is_zmm_reg(insn.Op3) ||
+           is_zmm_reg(insn.Op4) || is_zmm_reg(insn.Op5) || is_zmm_reg(insn.Op6);
+}
+
+static bool function_uses_zmm_reg(ea_t ea) {
+    func_t *pfn = get_func(ea);
+    if (pfn == nullptr) return false;
+
+    for (ea_t item = pfn->start_ea; item < pfn->end_ea; item = next_head(item, pfn->end_ea)) {
+        insn_t insn;
+        if (decode_insn(&insn, item) <= 0) continue;
+        if (insn_uses_zmm_reg(insn)) return true;
+    }
+    return false;
+}
+
+static bool previous_insn_is_zmm_call(ea_t ea) {
+    func_t *pfn = get_func(ea);
+    if (pfn == nullptr) return false;
+
+    ea_t prev = prev_head(ea, pfn->start_ea);
+    if (prev == BADADDR) return false;
+
+    insn_t insn;
+    if (decode_insn(&insn, prev) <= 0 || insn.itype != NN_call) return false;
+    if (insn.Op1.type != o_near && insn.Op1.type != o_far) return false;
+    return function_uses_zmm_reg(insn.Op1.addr);
+}
 
 merror_t handle_vcvtdq2ps(codegen_t &cdg) {
     int op_size = get_op_size(cdg.insn);
@@ -82,9 +125,26 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
     int src_size = is_ss2sd ? FLOAT_SIZE : DOUBLE_SIZE;
     int dst_size = is_ss2sd ? DOUBLE_SIZE : FLOAT_SIZE;
 
-    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+
+    int zmm_alias = is_ss2sd ? get_xmm_reg_index(cdg.insn.Op3) : -1;
+    if (zmm_alias >= 0 && previous_insn_is_zmm_call(cdg.insn.ea)) {
+        AVXIntrinsic read(&cdg, "__lifter_zmm_read_f32");
+        mreg_t scalar = cdg.mba->alloc_kreg(FLOAT_SIZE);
+        if (scalar == mr_none) return MERR_INSN;
+        read.add_argument_imm((uint64) zmm_alias, BT_INT32);
+        read.set_return_reg(scalar, tinfo_t(BT_FLOAT));
+        if (read.emit() == nullptr) return MERR_INSN;
+
+        mop_t src(scalar, FLOAT_SIZE);
+        mop_t dst(d, DOUBLE_SIZE);
+        cdg.emit(m_f2f, &src, nullptr, &dst);
+        clear_upper(cdg, d);
+        return MERR_OK;
+    }
+
+    AvxOpLoader r(cdg, 2, cdg.insn.Op3);
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, dst_size);
     if (mask.has_mask) {
