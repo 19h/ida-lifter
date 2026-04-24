@@ -73,6 +73,10 @@ set(PS_BINARY_TESTS
     test_vpermute2f128_ps_0x01 test_vshuffle_ps_0x1B test_vblend_ps_0xAA
 )
 
+set(PS128_BINARY_TESTS test_vmovlhps)
+
+set(PS_PERMVAR_TESTS test_vpermps)
+
 set(PS_TERNARY_TESTS test_vfmadd231ps)
 
 set(INT_UNARY_TESTS
@@ -166,6 +170,14 @@ endforeach()
 
 foreach(TEST ${PS_BINARY_TESTS})
     add_unit_test(${TEST} stub_ps_binary.c)
+endforeach()
+
+foreach(TEST ${PS128_BINARY_TESTS})
+    add_unit_test(${TEST} stub_ps128_binary.c)
+endforeach()
+
+foreach(TEST ${PS_PERMVAR_TESTS})
+    add_unit_test(${TEST} stub_ps_permvar.c)
 endforeach()
 
 foreach(TEST ${PS_TERNARY_TESTS})

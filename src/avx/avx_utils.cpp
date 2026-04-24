@@ -216,7 +216,8 @@ bool is_shuffle_insn(uint16 it) {
 }
 
 bool is_perm_insn(uint16 it) {
-    return it == NN_vpermq || it == NN_vpermd || it == NN_vpermilps || it == NN_vpermilpd;
+    return it == NN_vpermq || it == NN_vpermd || it == NN_vpermps ||
+           it == NN_vpermilps || it == NN_vpermilpd;
 }
 
 bool is_permutex_insn(uint16 it) {
@@ -355,7 +356,7 @@ bool is_broadcast_insn(uint16 it) {
 bool is_misc_insn(uint16 it) {
     return it == NN_vsqrtss || it == NN_vsqrtps || it == NN_vsqrtpd ||
            it == NN_vshufps || it == NN_vshufpd ||
-           it == NN_vpermpd;
+           it == NN_vpermpd || it == NN_vmovlhps;
 }
 
 bool is_extract_insert_insn(uint16 it) {

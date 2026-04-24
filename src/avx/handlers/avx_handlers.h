@@ -169,6 +169,8 @@ merror_t handle_vshufpd(codegen_t &cdg);
 
 merror_t handle_vpermpd(codegen_t &cdg);
 
+merror_t handle_vmovlhps(codegen_t &cdg);
+
 merror_t handle_vzeroupper_nop(codegen_t &cdg);
 
 merror_t handle_vbroadcast_ss_sd(codegen_t &cdg);

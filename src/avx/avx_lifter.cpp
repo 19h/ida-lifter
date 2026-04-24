@@ -334,6 +334,7 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vshufps) return handle_vshufps(cdg);
         if (it == NN_vshufpd) return handle_vshufpd(cdg);
         if (it == NN_vpermpd) return handle_vpermpd(cdg);
+        if (it == NN_vmovlhps) return handle_vmovlhps(cdg);
         if (it == NN_vzeroupper) return handle_vzeroupper_nop(cdg);
 
         // extract/insert

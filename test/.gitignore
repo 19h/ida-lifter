@@ -11,10 +11,10 @@ cmake_install.cmake
 !CMakeLists.txt
 
 # Compiled binaries
-test_*
-avx_*
-decompiler_ref
-shooter
+/test_*
+/avx_*
+/decompiler_ref
+/shooter
 !shooter/
 !integration/test_scalar.c
 

@@ -744,6 +744,23 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
         icall.add_argument_reg(idx, ti);
         icall.set_return_reg(d, ti);
         icall.emit();
+    } else if (cdg.insn.itype == NN_vpermps) {
+        // AVX2 VPERMPS is YMM-only: vpermps dst, idx, src/m256.
+        // Do not handle AVX-512 ZMM here; those use different intrinsic naming.
+        if (size != YMM_SIZE || mask.has_mask || !is_ymm_reg(cdg.insn.Op2)) {
+            return MERR_INSN;
+        }
+
+        mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
+        AvxOpLoader src(cdg, 2, cdg.insn.Op3);
+
+        AVXIntrinsic icall(&cdg, "_mm256_permutevar8x32_ps");
+        tinfo_t ti_ps = get_type_robust(YMM_SIZE, false, false);
+        tinfo_t ti_idx = get_type_robust(YMM_SIZE, true, false);
+        icall.add_argument_reg(src, ti_ps);
+        icall.add_argument_reg(idx, ti_idx);
+        icall.set_return_reg(d, ti_ps);
+        icall.emit();
     } else if (cdg.insn.itype == NN_vpermilps || cdg.insn.itype == NN_vpermilpd) {
         // vpermilps/vpermilpd xmm1, xmm2, imm8 or xmm1, xmm2, xmm3/m128
         bool is_double = (cdg.insn.itype == NN_vpermilpd);
@@ -788,6 +805,25 @@ merror_t handle_v_perm_int(codegen_t &cdg) {
         }
         if (size == XMM_SIZE) clear_upper(cdg, d);
     }
+    return MERR_OK;
+}
+
+merror_t handle_vmovlhps(codegen_t &cdg) {
+    if (!is_xmm_reg(cdg.insn.Op1) || !is_xmm_reg(cdg.insn.Op2) || !is_xmm_reg(cdg.insn.Op3)) {
+        return MERR_INSN;
+    }
+
+    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t src1 = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t src2 = reg2mreg(cdg.insn.Op3.reg);
+
+    AVXIntrinsic icall(&cdg, "_mm_movelh_ps");
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+    icall.add_argument_reg(src1, ti);
+    icall.add_argument_reg(src2, ti);
+    icall.set_return_reg(dst, ti);
+    icall.emit();
+    clear_upper(cdg, dst);
     return MERR_OK;
 }
 

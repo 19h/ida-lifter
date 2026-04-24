@@ -47,6 +47,8 @@ __m256 test_vpermute_ps_0x1B(__m256 a);
 __m256 test_vpermute2f128_ps_0x01(__m256 a, __m256 b);
 __m256 test_vshuffle_ps_0x1B(__m256 a, __m256 b);
 __m256 test_vblend_ps_0xAA(__m256 a, __m256 b);
+__m256 test_vpermps(__m256 a, __m256i idx);
+__m128 test_vmovlhps(__m128 a, __m128 b);
 
 // Conversion
 __m256i test_vcvtps2dq(__m256 a);

@@ -1,4 +1,4 @@
-.PHONY: all build clean install
+.PHONY: all build clean install test test-avx10
 
 BUILD_DIR := build
 INSTALL_DIR := $(HOME)/.idapro/plugins
@@ -42,6 +42,12 @@ ifeq ($(UNAME_S),Darwin)
 	@codesign -s - -f "$(INSTALL_DIR)/$(PLUGIN_NAME)" 2>/dev/null || true
 endif
 	@echo "Installed $(PLUGIN_NAME) to $(INSTALL_DIR)"
+
+test:
+	@$(MAKE) -C test build
+
+test-avx10:
+	@$(MAKE) -C test experimental_avx10
 
 clean:
 	@rm -rf $(BUILD_DIR)

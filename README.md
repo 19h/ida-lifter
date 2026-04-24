@@ -123,7 +123,7 @@ for ( j = 0; j != 7680; j += 256 ) {
 
 ## Test Suite
 
-The primary test suite lives in `test/` (CMake + Makefile wrapper). AVX-512/AVX10 coverage and missing-asm reporting live in `avx10/`. Legacy object-based regressions remain in `tests/` and `suite/`. See `test/README.md` for detailed documentation.
+The maintained test suite lives in `test/` (CMake + Makefile wrapper). Experimental AVX-512/AVX10 coverage and missing-asm reports live in `test/experimental/avx10/`. See `test/README.md` for detailed documentation.
 
 ```
 test/
@@ -146,16 +146,24 @@ test/
         └── bullet.c           # 2D shooter with enemy AI, A* pathfinding (AVX)
 ```
 
-- `avx10/` - Comprehensive AVX-512/AVX10 test binary + `avx10_missing_asm_latest.txt` report
-- `tests/` and `suite/` - legacy object-based regression artifacts
+- `test/experimental/avx10/` - Explicit-only AVX-512/AVX10 object corpus + missing-asm reports
+- `tests/` - legacy object-based regression artifacts
 
 Build and run (Makefile wrapper):
 ```bash
-cd test
-make
-make shooter
-make decompiler_ref
-./build/decompiler_ref
+make test              # build the plugin test suite under test/
+make -C test unit_tests
+make -C test test_vpermps
+make -C test test_vmovlhps
+make -C test run_comprehensive
+make test-avx10        # optional; requires AVX10-capable Clang
+```
+
+Decompiler validation requires IDA and the installed plugin:
+```bash
+make install
+idump --plugin lifter --pseudo test/build/test_vpermps
+idump --plugin lifter --pseudo test/build/test_vmovlhps
 ```
 
 Manual CMake:
@@ -281,7 +289,7 @@ Never free kregs that are referenced by emitted instructions - the microcode eng
 ### Verification Approach
 
 1. **Unit/integration tests** in `test/` with isolated instruction patterns
-2. **AVX-512/AVX10 coverage** in `avx10/` with missing-asm reports
+2. **AVX-512/AVX10 coverage** in `test/experimental/avx10/` with missing-asm reports
 3. **Real-world binaries** (`test/physics/shooter`) with complex SIMD code
 4. **idafn_dump** tool for batch decompilation and error detection
 5. **Iterative debugging** using IDA's INTERR codes to pinpoint issues

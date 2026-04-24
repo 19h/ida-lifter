@@ -1,0 +1,589 @@
+AVX512 test __asm instructions (grouped by mnemonic)
+Total __asm occurrences: 335
+Unique instruction forms: 292
+
+## kmovw (occurrences: 1, forms: 1)
+- kmovw word ptr [rcx], k1  [1]
+
+## vaddph (occurrences: 5, forms: 4)
+- vaddph xmm0, xmm0, [rsp+2B00h+var_590]  [1]
+- vaddph ymm0, ymm0, [rsp+2B00h+var_720]  [1]
+- vaddph zmm0, zmm0, zmmword ptr [rsp+2B00h+var_1940]  [1]
+- vaddph zmm0{k1}, zmm1, zmm2  [2]
+
+## vaddsh (occurrences: 1, forms: 1)
+- vaddsh xmm0, xmm0, xmm1  [1]
+
+## vaesdec (occurrences: 2, forms: 2)
+- vaesdec ymm0, ymm0, ymm1  [1]
+- vaesdec zmm0, zmm0, zmm1  [1]
+
+## vaesdeclast (occurrences: 2, forms: 2)
+- vaesdeclast ymm0, ymm0, ymm1  [1]
+- vaesdeclast zmm0, zmm0, zmm1  [1]
+
+## vaesenc (occurrences: 2, forms: 2)
+- vaesenc ymm0, ymm0, ymm1  [1]
+- vaesenc zmm0, zmm0, zmm1  [1]
+
+## vaesenclast (occurrences: 2, forms: 2)
+- vaesenclast ymm0, ymm0, ymm1  [1]
+- vaesenclast zmm0, zmm0, zmm1  [1]
+
+## vbroadcastf32x4 (occurrences: 1, forms: 1)
+- vbroadcastf32x4 zmm0, [rsp+1F40h+var_B80]  [1]
+
+## vbroadcastf64x4 (occurrences: 2, forms: 2)
+- vbroadcastf64x4 zmm0, [rsp+1F40h+var_AE0]  [1]
+- vbroadcastf64x4 zmm0, [rsp+1F40h+var_B40]  [1]
+
+## vbroadcasti32x4 (occurrences: 1, forms: 1)
+- vbroadcasti32x4 zmm0, [rsp+1F40h+var_AB0]  [1]
+
+## vbroadcasti64x4 (occurrences: 2, forms: 2)
+- vbroadcasti64x4 zmm0, [rsp+1F40h+var_A40]  [1]
+- vbroadcasti64x4 zmm0, [rsp+1F40h+var_A80]  [1]
+
+## vcvtne2ps2bf16 (occurrences: 8, forms: 4)
+- vcvtne2ps2bf16 xmm0, xmm0, xmm1  [2]
+- vcvtne2ps2bf16 ymm0, ymm0, ymm1  [2]
+- vcvtne2ps2bf16 zmm0, zmm0, zmm1  [2]
+- vcvtne2ps2bf16 zmm0{k1}, zmm1, zmm2  [2]
+
+## vcvtneps2bf16 (occurrences: 5, forms: 4)
+- vcvtneps2bf16 xmm0, ymm0  [1]
+- vcvtneps2bf16 ymm0, zmm0  [1]
+- vcvtneps2bf16 ymm0, zmmword ptr [rsp+1380h+var_BC0]  [1]
+- vcvtneps2bf16 ymm0{k1}, zmm1  [2]
+
+## vcvtpd2ph (occurrences: 1, forms: 1)
+- vcvtpd2ph xmm0, zmm0  [1]
+
+## vcvtpd2qq (occurrences: 1, forms: 1)
+- vcvtpd2qq zmm0, zmm0  [1]
+
+## vcvtpd2uqq (occurrences: 1, forms: 1)
+- vcvtpd2uqq zmm0, zmm0  [1]
+
+## vcvtph2pd (occurrences: 1, forms: 1)
+- vcvtph2pd zmm0, xmm0  [1]
+
+## vcvtph2psx (occurrences: 1, forms: 1)
+- vcvtph2psx zmm0, ymm0  [1]
+
+## vcvtph2uw (occurrences: 1, forms: 1)
+- vcvtph2uw zmm0, zmm0  [1]
+
+## vcvtph2w (occurrences: 1, forms: 1)
+- vcvtph2w zmm0, zmm0  [1]
+
+## vcvtps2phx (occurrences: 1, forms: 1)
+- vcvtps2phx ymm0, zmm0  [1]
+
+## vcvtps2qq (occurrences: 1, forms: 1)
+- vcvtps2qq zmm0, ymm0  [1]
+
+## vcvtps2uqq (occurrences: 1, forms: 1)
+- vcvtps2uqq zmm0, ymm0  [1]
+
+## vcvtqq2pd (occurrences: 2, forms: 2)
+- vcvtqq2pd zmm0, zmmword ptr [rsp+1F40h+var_9C0]  [1]
+- vcvtqq2pd zmm0, zmmword ptr [rsp+1F40h+var_A00]  [1]
+
+## vcvtqq2ps (occurrences: 2, forms: 1)
+- vcvtqq2ps ymm0, zmm0  [2]
+
+## vcvtsd2ss (occurrences: 1, forms: 1)
+- vcvtsd2ss xmm0{k1}, xmm1, xmm2  [1]
+
+## vcvtss2sd (occurrences: 1, forms: 1)
+- vcvtss2sd xmm0{k1}, xmm1, xmm2  [1]
+
+## vcvttpd2qq (occurrences: 1, forms: 1)
+- vcvttpd2qq zmm0, zmm0  [1]
+
+## vcvttpd2uqq (occurrences: 1, forms: 1)
+- vcvttpd2uqq zmm0, zmm0  [1]
+
+## vcvttph2uw (occurrences: 1, forms: 1)
+- vcvttph2uw zmm0, zmm0  [1]
+
+## vcvttph2w (occurrences: 1, forms: 1)
+- vcvttph2w zmm0, zmm0  [1]
+
+## vcvttps2qq (occurrences: 1, forms: 1)
+- vcvttps2qq zmm0, ymm0  [1]
+
+## vcvttps2uqq (occurrences: 1, forms: 1)
+- vcvttps2uqq zmm0, ymm0  [1]
+
+## vcvtuqq2pd (occurrences: 1, forms: 1)
+- vcvtuqq2pd zmm0, zmmword ptr [rsp+1F40h+var_980]  [1]
+
+## vcvtuqq2ps (occurrences: 1, forms: 1)
+- vcvtuqq2ps ymm0, zmmword ptr [rsp+1F40h+var_6C0]  [1]
+
+## vcvtuw2ph (occurrences: 1, forms: 1)
+- vcvtuw2ph zmm0, zmmword ptr [rsp+2B00h+var_C00]  [1]
+
+## vcvtw2ph (occurrences: 1, forms: 1)
+- vcvtw2ph zmm0, zmm0  [1]
+
+## vdbpsadbw (occurrences: 1, forms: 1)
+- vdbpsadbw zmm0, zmm0, zmm1, 0  [1]
+
+## vdivph (occurrences: 3, forms: 3)
+- vdivph xmm0, xmm0, [rsp+2B00h+var_530]  [1]
+- vdivph ymm0, ymm0, [rsp+2B00h+var_660]  [1]
+- vdivph zmm0, zmm0, zmmword ptr [rsp+2B00h+var_17C0]  [1]
+
+## vdivsh (occurrences: 1, forms: 1)
+- vdivsh xmm0, xmm0, xmm1  [1]
+
+## vdpbf16ps (occurrences: 6, forms: 5)
+- vdpbf16ps xmm0, xmm1, xmm2  [1]
+- vdpbf16ps ymm0, ymm1, ymm2  [1]
+- vdpbf16ps ymm1, ymm0, ymm2  [1]
+- vdpbf16ps zmm0, zmm1, zmm2  [1]
+- vdpbf16ps zmm1, zmm0, zmm2  [2]
+
+## vfcmaddcph (occurrences: 1, forms: 1)
+- vfcmaddcph zmm0, zmm1, zmm2  [1]
+
+## vfcmulcph (occurrences: 3, forms: 3)
+- vfcmulcph xmm0, xmm1, xmm2  [1]
+- vfcmulcph ymm0, ymm1, ymm2  [1]
+- vfcmulcph zmm0, zmm1, zmm2  [1]
+
+## vfixupimmsd (occurrences: 1, forms: 1)
+- vfixupimmsd xmm0, xmm1, xmm2, 0  [1]
+
+## vfixupimmss (occurrences: 1, forms: 1)
+- vfixupimmss xmm0, xmm1, xmm2, 0  [1]
+
+## vfmadd213ph (occurrences: 6, forms: 3)
+- vfmadd213ph xmm0, xmm1, xmm2  [1]
+- vfmadd213ph ymm0, ymm1, ymm2  [1]
+- vfmadd213ph zmm0, zmm1, zmm2  [4]
+
+## vfmadd213sh (occurrences: 1, forms: 1)
+- vfmadd213sh xmm0, xmm1, xmm2  [1]
+
+## vfmadd231ss (occurrences: 1, forms: 1)
+- vfmadd231ss xmm0{k1}, xmm1, xmm2  [1]
+
+## vfmaddcph (occurrences: 1, forms: 1)
+- vfmaddcph zmm0, zmm1, zmm2  [1]
+
+## vfmaddsub213ph (occurrences: 2, forms: 1)
+- vfmaddsub213ph zmm0, zmm1, zmm2  [2]
+
+## vfmulcph (occurrences: 1, forms: 1)
+- vfmulcph zmm0, zmm1, zmm2  [1]
+
+## vgetexpph (occurrences: 1, forms: 1)
+- vgetexpph zmm0, zmm0  [1]
+
+## vgetexpsd (occurrences: 1, forms: 1)
+- vgetexpsd xmm0, xmm0, xmm1  [1]
+
+## vgetexpss (occurrences: 1, forms: 1)
+- vgetexpss xmm0, xmm0, xmm1  [1]
+
+## vgetmantph (occurrences: 1, forms: 1)
+- vgetmantph zmm0, zmm0, 0  [1]
+
+## vgetmantsd (occurrences: 1, forms: 1)
+- vgetmantsd xmm0, xmm0, xmm1, 0  [1]
+
+## vgetmantss (occurrences: 1, forms: 1)
+- vgetmantss xmm0, xmm0, xmm1, 0  [1]
+
+## vgf2p8affineinvqb (occurrences: 5, forms: 5)
+- vgf2p8affineinvqb xmm0, xmm0, xmm1, 0  [1]
+- vgf2p8affineinvqb ymm0, ymm0, ymm1, 0  [1]
+- vgf2p8affineinvqb zmm0, zmm0, zmm1, 0  [1]
+- vgf2p8affineinvqb zmm0{k1}, zmm0, zmm1, 0  [1]
+- vgf2p8affineinvqb zmm0{k1}, zmm1, zmm2, 0  [1]
+
+## vgf2p8affineqb (occurrences: 7, forms: 7)
+- vgf2p8affineqb xmm0, xmm0, xmm1, 0  [1]
+- vgf2p8affineqb xmm0{k1}, xmm0, xmm1, 0  [1]
+- vgf2p8affineqb ymm0, ymm0, ymm1, 0  [1]
+- vgf2p8affineqb ymm0{k1}, ymm0, ymm1, 0  [1]
+- vgf2p8affineqb zmm0, zmm0, zmm1, 0  [1]
+- vgf2p8affineqb zmm0{k1}, zmm0, zmm1, 0  [1]
+- vgf2p8affineqb zmm0{k1}, zmm1, zmm2, 0  [1]
+
+## vgf2p8mulb (occurrences: 5, forms: 4)
+- vgf2p8mulb xmm0, xmm0, xmm1  [1]
+- vgf2p8mulb ymm0, ymm0, ymm1  [1]
+- vgf2p8mulb zmm0, zmm0, zmm1  [1]
+- vgf2p8mulb zmm0{k1}, zmm1, zmm2  [2]
+
+## vinsertf32x4 (occurrences: 4, forms: 2)
+- vinsertf32x4 zmm0, zmm0, xmm1, 0  [2]
+- vinsertf32x4 zmm0, zmm0, xmm1, 2  [2]
+
+## vmaxph (occurrences: 1, forms: 1)
+- vmaxph zmm0, zmm0, zmm1  [1]
+
+## vmaxsd (occurrences: 1, forms: 1)
+- vmaxsd xmm0{k1}, xmm1, xmm2  [1]
+
+## vmaxsh (occurrences: 1, forms: 1)
+- vmaxsh xmm0, xmm0, xmm1  [1]
+
+## vmaxss (occurrences: 1, forms: 1)
+- vmaxss xmm0{k1}, xmm1, xmm2  [1]
+
+## vminph (occurrences: 1, forms: 1)
+- vminph zmm0, zmm0, zmm1  [1]
+
+## vminsd (occurrences: 1, forms: 1)
+- vminsd xmm0{k1}, xmm1, xmm2  [1]
+
+## vminsh (occurrences: 1, forms: 1)
+- vminsh xmm0, xmm0, xmm1  [1]
+
+## vminss (occurrences: 1, forms: 1)
+- vminss xmm0{k1}, xmm1, xmm2  [1]
+
+## vmovsd (occurrences: 6, forms: 1)
+- vmovsd xmm0{k1}, xmm1, xmm2  [6]
+
+## vmovsh (occurrences: 26, forms: 23)
+- vmovsh [rsp+2B00h+var_1942], xmm1  [1]
+- vmovsh [rsp+2B00h+var_1962], xmm0  [1]
+- vmovsh [rsp+2B00h+var_1982], xmm0  [1]
+- vmovsh [rsp+2B00h+var_19A2], xmm1  [1]
+- vmovsh [rsp+2B00h+var_19E2], xmm0  [1]
+- vmovsh [rsp+2B00h+var_1A22], xmm0  [1]
+- vmovsh [rsp+2B00h+var_1AC2], xmm1  [1]
+- vmovsh [rsp+2B00h+var_1B42], xmm0  [1]
+- vmovsh [rsp+2B00h+var_492], xmm0  [1]
+- vmovsh [rsp+2B00h+var_4B2], xmm0  [1]
+- vmovsh xmm0, [rsp+2B00h+var_492]  [1]
+- vmovsh xmm0, [rsp+2B00h+var_4B2]  [1]
+- vmovsh xmm0, xmm0, cs:word_2B0  [3]
+- vmovsh xmm0, xmm0, cs:word_2B2  [2]
+- vmovsh xmm0, xmm0, xmm1  [1]
+- vmovsh xmm1, word ptr [rsp+2B00h+var_3E0]  [1]
+- vmovsh xmm1, word ptr [rsp+2B00h+var_430]  [1]
+- vmovsh xmm1, word ptr [rsp+2B00h+var_450]  [1]
+- vmovsh xmm1, word ptr [rsp+2B00h+var_470]  [1]
+- vmovsh xmm1, word ptr [rsp+2B00h+var_490]  [1]
+- vmovsh xmm1, xmm0, cs:word_2B0  [1]
+- vmovsh xmm2, word ptr [rsp+2B00h+var_3F0]  [1]
+- vmovsh xmm2, word ptr [rsp+2B00h+var_410]  [1]
+
+## vmovss (occurrences: 6, forms: 1)
+- vmovss xmm0{k1}, xmm1, xmm2  [6]
+
+## vmovw (occurrences: 6, forms: 6)
+- vmovw xmm0, [rsp+0F40h+var_B0]  [1]
+- vmovw xmm0, [rsp+0F40h+var_E0]  [1]
+- vmovw xmm0, [rsp+2E40h+var_20]  [1]
+- vmovw xmm0, [rsp+2E40h+var_50]  [1]
+- vmovw xmm1, [rsp+0F40h+var_D0]  [1]
+- vmovw xmm1, [rsp+2E40h+var_40]  [1]
+
+## vmulph (occurrences: 4, forms: 4)
+- vmulph xmm0, xmm0, [rsp+2B00h+var_550]  [1]
+- vmulph ymm0, ymm0, [rsp+2B00h+var_6A0]  [1]
+- vmulph zmm0, zmm0, zmmword ptr [rsp+2B00h+var_1840]  [1]
+- vmulph zmm0{k1}, zmm1, zmm2  [1]
+
+## vmulsh (occurrences: 1, forms: 1)
+- vmulsh xmm0, xmm0, xmm1  [1]
+
+## vpaddusb (occurrences: 1, forms: 1)
+- vpaddusb zmm0, zmm0, zmm1  [1]
+
+## vpaddusw (occurrences: 1, forms: 1)
+- vpaddusw zmm0, zmm0, zmm1  [1]
+
+## vpclmulqdq (occurrences: 6, forms: 6)
+- vpclmulqdq ymm0, ymm0, ymm1, 0  [1]
+- vpclmulqdq ymm0, ymm0, ymm1, 11h  [1]
+- vpclmulqdq zmm0, zmm0, zmm1, 0  [1]
+- vpclmulqdq zmm0, zmm0, zmm1, 1  [1]
+- vpclmulqdq zmm0, zmm0, zmm1, 10h  [1]
+- vpclmulqdq zmm0, zmm0, zmm1, 11h  [1]
+
+## vpdpbusd (occurrences: 6, forms: 5)
+- vpdpbusd xmm0, xmm1, xmm2  [1]
+- vpdpbusd ymm0, ymm1, ymm2  [1]
+- vpdpbusd ymm0{k1}, ymm1, ymm2  [1]
+- vpdpbusd zmm0, zmm1, zmm2  [1]
+- vpdpbusd zmm1, zmm0, zmm2  [2]
+
+## vpdpbusds (occurrences: 5, forms: 4)
+- vpdpbusds xmm0, xmm1, xmm2  [1]
+- vpdpbusds ymm0, ymm1, ymm2  [1]
+- vpdpbusds zmm0, zmm1, zmm2  [1]
+- vpdpbusds zmm1, zmm0, zmm2  [2]
+
+## vpdpwssd (occurrences: 5, forms: 4)
+- vpdpwssd xmm0, xmm1, xmm2  [1]
+- vpdpwssd ymm0, ymm1, ymm2  [1]
+- vpdpwssd zmm0, zmm1, zmm2  [1]
+- vpdpwssd zmm1, zmm0, zmm2  [2]
+
+## vpdpwssds (occurrences: 5, forms: 4)
+- vpdpwssds xmm0, xmm1, xmm2  [1]
+- vpdpwssds ymm0, ymm1, ymm2  [1]
+- vpdpwssds zmm0, zmm1, zmm2  [1]
+- vpdpwssds zmm1, zmm0, zmm2  [2]
+
+## vplzcntd (occurrences: 5, forms: 4)
+- vplzcntd xmm0, xmm0  [1]
+- vplzcntd ymm0, ymm0  [1]
+- vplzcntd zmm0, zmm0  [1]
+- vplzcntd zmm0{k1}, zmm1  [2]
+
+## vplzcntq (occurrences: 3, forms: 2)
+- vplzcntq zmm0, zmm0  [1]
+- vplzcntq zmm0{k1}, zmm1  [2]
+
+## vpmadd52huq (occurrences: 5, forms: 4)
+- vpmadd52huq xmm0, xmm1, xmm2  [1]
+- vpmadd52huq ymm0, ymm1, ymm2  [1]
+- vpmadd52huq zmm0, zmm1, zmm2  [1]
+- vpmadd52huq zmm1, zmm0, zmm2  [2]
+
+## vpmadd52luq (occurrences: 9, forms: 8)
+- vpmadd52luq xmm0, xmm1, xmm2  [1]
+- vpmadd52luq xmm0{k1}, xmm1, xmm2  [1]
+- vpmadd52luq xmm1, xmm0, xmm2  [1]
+- vpmadd52luq ymm0, ymm1, ymm2  [1]
+- vpmadd52luq ymm0{k1}, ymm1, ymm2  [1]
+- vpmadd52luq ymm1, ymm0, ymm2  [1]
+- vpmadd52luq zmm0, zmm1, zmm2  [1]
+- vpmadd52luq zmm1, zmm0, zmm2  [2]
+
+## vpmovdb (occurrences: 1, forms: 1)
+- vpmovdb xmm0, zmm0  [1]
+
+## vpmovdw (occurrences: 1, forms: 1)
+- vpmovdw ymm0, zmm0  [1]
+
+## vpmovqb (occurrences: 1, forms: 1)
+- vpmovqb xmm0, zmm0  [1]
+
+## vpmovqd (occurrences: 1, forms: 1)
+- vpmovqd ymm0, zmm0  [1]
+
+## vpmovsdb (occurrences: 1, forms: 1)
+- vpmovsdb xmm0, zmm0  [1]
+
+## vpmovsdw (occurrences: 1, forms: 1)
+- vpmovsdw ymm0, zmm0  [1]
+
+## vpmovsqb (occurrences: 1, forms: 1)
+- vpmovsqb xmm0, zmm0  [1]
+
+## vpmovsqd (occurrences: 1, forms: 1)
+- vpmovsqd ymm0, zmm0  [1]
+
+## vpmovsqw (occurrences: 1, forms: 1)
+- vpmovsqw xmm0, zmm0  [1]
+
+## vpmovswb (occurrences: 1, forms: 1)
+- vpmovswb ymm0, zmm0  [1]
+
+## vpmovusdb (occurrences: 1, forms: 1)
+- vpmovusdb xmm0, zmm0  [1]
+
+## vpmovusdw (occurrences: 1, forms: 1)
+- vpmovusdw ymm0, zmm0  [1]
+
+## vpmovusqb (occurrences: 1, forms: 1)
+- vpmovusqb xmm0, zmm0  [1]
+
+## vpmovusqd (occurrences: 1, forms: 1)
+- vpmovusqd ymm0, zmm0  [1]
+
+## vpmovusqw (occurrences: 1, forms: 1)
+- vpmovusqw xmm0, zmm0  [1]
+
+## vpmovuswb (occurrences: 1, forms: 1)
+- vpmovuswb ymm0, zmm0  [1]
+
+## vpmovwb (occurrences: 1, forms: 1)
+- vpmovwb ymm0, zmm0  [1]
+
+## vpmulhrsw (occurrences: 1, forms: 1)
+- vpmulhrsw zmm0, zmm0, zmm1  [1]
+
+## vpmultishiftqb (occurrences: 5, forms: 4)
+- vpmultishiftqb xmm0, xmm0, xmm1  [1]
+- vpmultishiftqb ymm0, ymm0, ymm1  [1]
+- vpmultishiftqb zmm0, zmm0, zmm1  [1]
+- vpmultishiftqb zmm0{k1}, zmm1, zmm2  [2]
+
+## vpopcntb (occurrences: 6, forms: 5)
+- vpopcntb xmm0, xmm0  [1]
+- vpopcntb ymm0, ymm0  [1]
+- vpopcntb ymm0{k1}, ymm1  [1]
+- vpopcntb zmm0, zmm0  [1]
+- vpopcntb zmm0{k1}, zmm1  [2]
+
+## vpopcntd (occurrences: 6, forms: 5)
+- vpopcntd xmm0, xmm0  [1]
+- vpopcntd ymm0, ymm0  [1]
+- vpopcntd ymm0{k1}, ymm1  [1]
+- vpopcntd zmm0, zmm0  [1]
+- vpopcntd zmm0{k1}, zmm1  [2]
+
+## vpopcntq (occurrences: 5, forms: 4)
+- vpopcntq xmm0, xmm0  [1]
+- vpopcntq ymm0, ymm0  [1]
+- vpopcntq zmm0, zmm0  [1]
+- vpopcntq zmm0{k1}, zmm1  [2]
+
+## vpopcntw (occurrences: 5, forms: 4)
+- vpopcntw xmm0, xmm0  [1]
+- vpopcntw ymm0, ymm0  [1]
+- vpopcntw zmm0, zmm0  [1]
+- vpopcntw zmm0{k1}, zmm1  [2]
+
+## vpshldd (occurrences: 3, forms: 3)
+- vpshldd xmm0, xmm0, xmm1, 7  [1]
+- vpshldd ymm0, ymm0, ymm1, 7  [1]
+- vpshldd zmm0, zmm0, zmm1, 7  [1]
+
+## vpshldq (occurrences: 1, forms: 1)
+- vpshldq zmm0, zmm0, zmm1, 0Bh  [1]
+
+## vpshldvd (occurrences: 4, forms: 4)
+- vpshldvd xmm0, xmm1, xmm2  [1]
+- vpshldvd ymm0, ymm1, ymm2  [1]
+- vpshldvd zmm0, zmm1, zmm2  [1]
+- vpshldvd zmm1, zmm0, zmm2  [1]
+
+## vpshldvq (occurrences: 4, forms: 4)
+- vpshldvq xmm0, xmm1, xmm2  [1]
+- vpshldvq ymm0, ymm1, ymm2  [1]
+- vpshldvq zmm0, zmm1, zmm2  [1]
+- vpshldvq zmm1, zmm0, zmm2  [1]
+
+## vpshldvw (occurrences: 5, forms: 4)
+- vpshldvw xmm0, xmm1, xmm2  [1]
+- vpshldvw ymm0, ymm1, ymm2  [1]
+- vpshldvw zmm0, zmm1, zmm2  [1]
+- vpshldvw zmm1, zmm0, zmm2  [2]
+
+## vpshldw (occurrences: 5, forms: 5)
+- vpshldw xmm0, xmm0, xmm1, 5  [1]
+- vpshldw ymm0, ymm0, ymm1, 5  [1]
+- vpshldw zmm0, zmm0, zmm1, 5  [1]
+- vpshldw zmm0{k1}, zmm0, zmm1, 5  [1]
+- vpshldw zmm0{k1}, zmm1, zmm2, 5  [1]
+
+## vpshrdd (occurrences: 1, forms: 1)
+- vpshrdd zmm0, zmm0, zmm1, 7  [1]
+
+## vpshrdq (occurrences: 1, forms: 1)
+- vpshrdq zmm0, zmm0, zmm1, 0Bh  [1]
+
+## vpshrdvd (occurrences: 1, forms: 1)
+- vpshrdvd zmm0, zmm1, zmm2  [1]
+
+## vpshrdvq (occurrences: 1, forms: 1)
+- vpshrdvq zmm0, zmm1, zmm2  [1]
+
+## vpshrdvw (occurrences: 5, forms: 4)
+- vpshrdvw xmm0, xmm1, xmm2  [1]
+- vpshrdvw ymm0, ymm1, ymm2  [1]
+- vpshrdvw zmm0, zmm1, zmm2  [1]
+- vpshrdvw zmm1, zmm0, zmm2  [2]
+
+## vpshrdw (occurrences: 5, forms: 5)
+- vpshrdw xmm0, xmm0, xmm1, 5  [1]
+- vpshrdw ymm0, ymm0, ymm1, 5  [1]
+- vpshrdw zmm0, zmm0, zmm1, 5  [1]
+- vpshrdw zmm0{k1}, zmm0, zmm1, 5  [1]
+- vpshrdw zmm0{k1}, zmm1, zmm2, 5  [1]
+
+## vpsllvw (occurrences: 1, forms: 1)
+- vpsllvw zmm0, zmm0, zmm1  [1]
+
+## vpsravw (occurrences: 1, forms: 1)
+- vpsravw zmm0, zmm0, zmm1  [1]
+
+## vpsrlvw (occurrences: 1, forms: 1)
+- vpsrlvw zmm0, zmm0, zmm1  [1]
+
+## vpsubusb (occurrences: 1, forms: 1)
+- vpsubusb zmm0, zmm0, zmm1  [1]
+
+## vpsubusw (occurrences: 1, forms: 1)
+- vpsubusw zmm0, zmm0, zmm1  [1]
+
+## vrangesd (occurrences: 1, forms: 1)
+- vrangesd xmm0, xmm0, xmm1, 0  [1]
+
+## vrangess (occurrences: 1, forms: 1)
+- vrangess xmm0, xmm0, xmm1, 0  [1]
+
+## vrcp14sd (occurrences: 1, forms: 1)
+- vrcp14sd xmm0, xmm0, xmm1  [1]
+
+## vrcp14ss (occurrences: 1, forms: 1)
+- vrcp14ss xmm0, xmm0, xmm1  [1]
+
+## vrcpph (occurrences: 1, forms: 1)
+- vrcpph zmm0, zmm0  [1]
+
+## vreduceph (occurrences: 1, forms: 1)
+- vreduceph zmm0, zmm0, 0  [1]
+
+## vreducesd (occurrences: 1, forms: 1)
+- vreducesd xmm0, xmm0, xmm1, 0  [1]
+
+## vreducess (occurrences: 1, forms: 1)
+- vreducess xmm0, xmm0, xmm1, 0  [1]
+
+## vrndscaleph (occurrences: 1, forms: 1)
+- vrndscaleph zmm0, zmm0, 0  [1]
+
+## vrndscalesd (occurrences: 1, forms: 1)
+- vrndscalesd xmm0{k1}, xmm1, xmm2, 0  [1]
+
+## vrndscaless (occurrences: 1, forms: 1)
+- vrndscaless xmm0{k1}, xmm1, xmm2, 0  [1]
+
+## vrsqrt14sd (occurrences: 1, forms: 1)
+- vrsqrt14sd xmm0, xmm0, xmm1  [1]
+
+## vrsqrt14ss (occurrences: 1, forms: 1)
+- vrsqrt14ss xmm0, xmm0, xmm1  [1]
+
+## vrsqrtph (occurrences: 1, forms: 1)
+- vrsqrtph zmm0, zmm0  [1]
+
+## vscalefph (occurrences: 1, forms: 1)
+- vscalefph zmm0, zmm0, zmm1  [1]
+
+## vscalefsd (occurrences: 1, forms: 1)
+- vscalefsd xmm0, xmm0, xmm1  [1]
+
+## vscalefss (occurrences: 1, forms: 1)
+- vscalefss xmm0, xmm0, xmm1  [1]
+
+## vsqrtph (occurrences: 3, forms: 3)
+- vsqrtph xmm0, xmm0  [1]
+- vsqrtph ymm0, ymm0  [1]
+- vsqrtph zmm0, zmm0  [1]
+
+## vsqrtsh (occurrences: 1, forms: 1)
+- vsqrtsh xmm1, xmm1, xmm2  [1]
+
+## vsubph (occurrences: 3, forms: 3)
+- vsubph xmm0, xmm0, [rsp+2B00h+var_570]  [1]
+- vsubph ymm0, ymm0, [rsp+2B00h+var_6E0]  [1]
+- vsubph zmm0, zmm0, zmmword ptr [rsp+2B00h+var_18C0]  [1]
+
+## vsubsh (occurrences: 1, forms: 1)
+- vsubsh xmm0, xmm0, xmm1  [1]

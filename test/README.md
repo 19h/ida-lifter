@@ -80,6 +80,7 @@ cd test
 
 # Build all tests
 make
+make test              # Alias for building all tests
 
 # Build specific categories
 make unit_tests          # Build only unit tests
@@ -90,6 +91,7 @@ make physics_tests       # Build only physics tests
 make test_vaddps         # Unit test
 make shooter             # Physics test
 make avx_comprehensive_test  # Integration test
+make experimental_avx10  # Optional AVX-512/AVX10 object corpus
 
 # Run tests
 make run_shooter         # Build and run shooter (runs indefinitely)
@@ -117,6 +119,15 @@ make integration_tests
 make physics_tests
 ```
 
+### Experimental AVX-512/AVX10 Corpus
+
+`experimental/avx10/` contains a standalone freestanding object corpus for broad AVX-512/AVX10 ISA coverage and missing-asm reporting. It is not part of the default `make test` path because it requires newer Clang support for AVX10.2 and other optional ISA flags.
+
+```bash
+make experimental_avx10
+make -C experimental/avx10 clean
+```
+
 ### Cross-compilation (Apple Silicon)
 
 On ARM64 Macs, CMake automatically configures x86_64 cross-compilation for Rosetta 2:
@@ -129,14 +140,16 @@ make  # Automatically detects Apple Silicon and configures -arch x86_64
 
 ### With IDA Pro Decompilation
 
-Use the `idafn_dump` tool to batch decompile and check for errors:
+Use `idump` to batch decompile and check for errors after installing the plugin:
 
 ```bash
+make -C .. install
+
 # Run all physics tests (recommended for validation)
-DYLD_LIBRARY_PATH="/path/to/ida" /path/to/idafn_dump build/shooter
+idump --plugin lifter --pseudo build/shooter
 
 # Run specific unit test
-DYLD_LIBRARY_PATH="/path/to/ida" /path/to/idafn_dump build/test_vaddps
+idump --plugin lifter --pseudo build/test_vaddps
 ```
 
 ### Direct Execution

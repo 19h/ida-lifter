@@ -3,11 +3,15 @@
 
 # Build directory
 BUILD_DIR = build
+AVX10_DIR = experimental/avx10
 
 # Default target
 .PHONY: all
 all: configure
 	@$(MAKE) -C $(BUILD_DIR)
+
+.PHONY: test
+test: build
 
 # Configure CMake
 .PHONY: configure
@@ -47,6 +51,14 @@ shooter: configure
 .PHONY: avx_comprehensive_test
 avx_comprehensive_test: configure
 	@$(MAKE) -C $(BUILD_DIR) avx_comprehensive_test
+
+.PHONY: experimental_avx10
+experimental_avx10:
+	@$(MAKE) -C $(AVX10_DIR)
+
+.PHONY: clean_experimental_avx10
+clean_experimental_avx10:
+	@$(MAKE) -C $(AVX10_DIR) clean
 
 # Pattern rule for building individual unit tests
 test_%: configure
@@ -186,6 +198,7 @@ help:
 	@echo ""
 	@echo "Build Targets:"
 	@echo "  make                    - Build all tests (default)"
+	@echo "  make test               - Alias for building all tests"
 	@echo "  make build              - Build all tests"
 	@echo "  make unit_tests         - Build only unit tests"
 	@echo "  make integration_tests  - Build only integration tests"
@@ -194,6 +207,7 @@ help:
 	@echo "Specific Targets:"
 	@echo "  make decompiler_ref     - Build decompiler_ref (AVX physics suite)"
 	@echo "  make shooter            - Build shooter (bullet hell game)"
+	@echo "  make experimental_avx10 - Build experimental AVX-512/AVX10 object corpus"
 	@echo "  make test_vaddps        - Build specific unit test"
 	@echo "  make test_<name>        - Build any test by name"
 	@echo ""
@@ -224,7 +238,8 @@ help:
 .SECONDARY:
 
 # Declare phony targets
-.PHONY: all configure build unit_tests integration_tests physics_tests \
+.PHONY: all configure build test unit_tests integration_tests physics_tests \
         decompiler_ref shooter avx_comprehensive_test \
+        experimental_avx10 clean_experimental_avx10 \
         clean rebuild run_decompiler_ref run_shooter run_comprehensive help \
         shooter-wasm shooter-wasm-lib clean-wasm
