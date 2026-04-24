@@ -19,6 +19,8 @@ struct ida_local AVXIntrinsic {
     minsn_t *mov_insn; // Heap-allocated (IDA allocator)
     bool emitted; // Track ownership transfer
     int stk_off; // Stack offset for arguments to satisfy verification
+    int virtual_return_zmm_index;
+    tinfo_t virtual_return_type;
 
     explicit AVXIntrinsic(codegen_t *cdg_, const char *name);
 

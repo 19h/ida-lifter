@@ -261,8 +261,15 @@ bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size) {
 }
 
 int get_zmm_reg_index(const op_t &op) {
-    if (!is_zmm_reg(op) || op.reg < R_zmm0 || op.reg > R_zmm31) return -1;
-    return op.reg - R_zmm0;
+    if (!is_zmm_reg(op)) return -1;
+
+    if (op.reg >= R_zmm0 && op.reg <= R_zmm31) return op.reg - R_zmm0;
+    if (op.reg >= R_ymm0 && op.reg <= R_ymm15) return op.reg - R_ymm0;
+    if (op.reg >= R_ymm16 && op.reg <= R_ymm31) return 16 + (op.reg - R_ymm16);
+    if (op.reg >= R_xmm0 && op.reg <= R_xmm15) return op.reg - R_xmm0;
+    if (op.reg >= R_xmm16 && op.reg <= R_xmm31) return 16 + (op.reg - R_xmm16);
+
+    return -1;
 }
 
 static void add_helper_imm_arg(mcallinfo_t *call_info, int &stk_off, uint64 value, type_t bt) {
@@ -280,6 +287,77 @@ static void add_helper_imm_arg(mcallinfo_t *call_info, int &stk_off, uint64 valu
 
     call_info->args.add(ca);
     call_info->solid_args++;
+}
+
+static void add_helper_reg_arg(mcallinfo_t *call_info, int &stk_off, mreg_t reg, const tinfo_t &ti, int size) {
+    mcallarg_t ca(mop_t(reg, size));
+    ca.type = ti;
+    ca.size = size;
+
+    int align = size < 8 ? 8 : size;
+    stk_off = (stk_off + align - 1) & ~(align - 1);
+    ca.argloc.set_stkoff(stk_off);
+    stk_off += ca.size;
+
+    call_info->args.add(ca);
+    call_info->solid_args++;
+}
+
+bool make_vector_load_mop(codegen_t &cdg, int opidx, mop_t &out_mop, const tinfo_t &vec_type, int vec_size,
+                          bool is_int, bool is_double) {
+    const op_t &op = opidx == 0 ? cdg.insn.Op1 : (opidx == 1 ? cdg.insn.Op2 : cdg.insn.Op3);
+    if (!is_mem_op(op)) return false;
+
+    int addr_size = inf_is_64bit() ? 8 : 4;
+    mreg_t addr_reg;
+    if (op.type == o_mem) {
+        addr_reg = cdg.mba->alloc_kreg(addr_size);
+        if (addr_reg == mr_none) return false;
+        mop_t addr_imm;
+        addr_imm.make_number(op.addr, addr_size);
+        mop_t addr_dst;
+        addr_dst.make_reg(addr_reg, addr_size);
+        mop_t empty;
+        cdg.emit(m_mov, &addr_imm, &empty, &addr_dst);
+    } else {
+        addr_reg = cdg.load_effective_address(opidx);
+        if (addr_reg == mr_none) return false;
+    }
+
+    const char *iname;
+    if (vec_size == ZMM_SIZE) {
+        iname = is_int ? "_mm512_loadu_si512" : (is_double ? "_mm512_loadu_pd" : "_mm512_loadu_ps");
+    } else if (vec_size == YMM_SIZE) {
+        iname = is_int ? "_mm256_loadu_si256" : (is_double ? "_mm256_loadu_pd" : "_mm256_loadu_ps");
+    } else {
+        iname = is_int ? "_mm_loadu_si128" : (is_double ? "_mm_loadu_pd" : "_mm_loadu_ps");
+    }
+
+    tinfo_t ptr_type;
+    ptr_type.create_ptr(tinfo_t(BT_VOID));
+
+    mcallinfo_t *call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
+    new(call_info) mcallinfo_t();
+    call_info->cc = CM_CC_SPECIAL;
+    call_info->flags = FCI_SPLOK | FCI_FINAL | FCI_PROP;
+    call_info->return_type = vec_type;
+
+    int stk_off = 0;
+    add_helper_reg_arg(call_info, stk_off, addr_reg, ptr_type, addr_size);
+
+    minsn_t *call_insn = (minsn_t *) qalloc(sizeof(minsn_t));
+    new(call_insn) minsn_t(cdg.insn.ea);
+    call_insn->opcode = m_call;
+    call_insn->l.make_helper(iname);
+    call_insn->d.t = mop_f;
+    call_insn->d.f = call_info;
+    call_insn->d.size = vec_size;
+    if (vec_size > 8) call_insn->d.set_udt();
+
+    out_mop.make_insn(call_insn);
+    out_mop.size = vec_size;
+    if (vec_size > 8) out_mop.set_udt();
+    return true;
 }
 
 minsn_t *make_zmm_read_call(codegen_t &cdg, int zmm_index, const tinfo_t &ti) {

@@ -461,9 +461,9 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
                 if (!emit_zmm_write_mop(cdg, cdg.insn.Op1, read_mop, vec_type)) return MERR_INSN;
             } else {
                 QASSERT(0xA0310, is_mem_op(cdg.insn.Op2));
-                mreg_t loaded = load_operand_udt(cdg, 1, size);
-                if (loaded == mr_none) return MERR_INSN;
-                if (!emit_zmm_write_call(cdg, cdg.insn.Op1, loaded, vec_type)) return MERR_INSN;
+                mop_t load_mop;
+                if (!make_vector_load_mop(cdg, 1, load_mop, vec_type, size, is_int, is_double)) return MERR_INSN;
+                if (!emit_zmm_write_mop(cdg, cdg.insn.Op1, load_mop, vec_type)) return MERR_INSN;
             }
             return MERR_OK;
         }

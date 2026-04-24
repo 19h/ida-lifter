@@ -3,15 +3,33 @@ AVX Intrinsic Call Builder
 */
 
 #include "avx_intrinsic.h"
+#include "avx_helpers.h"
 
 #if IDA_SDK_VERSION >= 750
 
 #include "../common/warn_off.h"
+#include <intel.hpp>
 #include <pro.h>
 #include "../common/warn_on.h"
 
+static int get_zmm_index_from_mreg(mreg_t mreg) {
+    int reg = mreg2reg(mreg, ZMM_SIZE);
+    if (reg >= R_zmm0 && reg <= R_zmm31) return reg - R_zmm0;
+
+    reg = mreg2reg(mreg, YMM_SIZE);
+    if (reg >= R_ymm0 && reg <= R_ymm15) return reg - R_ymm0;
+    if (reg >= R_ymm16 && reg <= R_ymm31) return 16 + (reg - R_ymm16);
+
+    reg = mreg2reg(mreg, XMM_SIZE);
+    if (reg >= R_xmm0 && reg <= R_xmm15) return reg - R_xmm0;
+    if (reg >= R_xmm16 && reg <= R_xmm31) return 16 + (reg - R_xmm16);
+
+    return -1;
+}
+
 AVXIntrinsic::AVXIntrinsic(codegen_t *cdg_, const char *name)
-    : cdg(cdg_), call_info(nullptr), call_insn(nullptr), mov_insn(nullptr), emitted(false), stk_off(0) {
+    : cdg(cdg_), call_info(nullptr), call_insn(nullptr), mov_insn(nullptr), emitted(false), stk_off(0),
+      virtual_return_zmm_index(-1) {
     // Allocate call_info with IDA's allocator
     call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
     new(call_info) mcallinfo_t();
@@ -53,6 +71,14 @@ void AVXIntrinsic::set_return_reg(mreg_t mreg, const tinfo_t &ret_ti) {
         return;
     }
 
+    if (size == ZMM_SIZE) {
+        int zmm_index = get_zmm_index_from_mreg(mreg);
+        if (zmm_index >= 0) {
+            virtual_return_zmm_index = zmm_index;
+            virtual_return_type = ret_ti;
+        }
+    }
+
     call_info->return_type = ret_ti;
     call_insn->d.size = (int) size;
 
@@ -60,6 +86,10 @@ void AVXIntrinsic::set_return_reg(mreg_t mreg, const tinfo_t &ret_ti) {
     // IDA's mop_t::verify allows non-standard sizes (like 16, 32, 64) only for UDTs
     if (size > 8) {
         call_insn->d.set_udt();
+    }
+
+    if (virtual_return_zmm_index >= 0) {
+        return;
     }
 
     // Create the wrapper move instruction
@@ -106,6 +136,19 @@ void AVXIntrinsic::set_return_reg_basic(mreg_t mreg, type_t basic_type) {
 
 void AVXIntrinsic::add_argument_reg(mreg_t mreg, const tinfo_t &arg_ti) {
     int ti_size = (int) arg_ti.get_size();
+
+    if (ti_size == ZMM_SIZE) {
+        int zmm_index = get_zmm_index_from_mreg(mreg);
+        if (zmm_index >= 0) {
+            mop_t read_mop;
+            read_mop.make_insn(make_zmm_read_call(*cdg, zmm_index, arg_ti));
+            read_mop.size = ti_size;
+            read_mop.set_udt();
+            add_argument_mop(read_mop, arg_ti);
+            return;
+        }
+    }
+
     mcallarg_t ca(mop_t(mreg, ti_size));
     ca.type = arg_ti;
     ca.size = (decltype(ca.size)) ti_size;
@@ -273,6 +316,32 @@ void AVXIntrinsic::add_argument_mask(mreg_t mreg, int num_elements) {
 }
 
 minsn_t *AVXIntrinsic::emit() {
+    if (virtual_return_zmm_index >= 0) {
+        if (!cdg->mb) {
+            ERROR_LOG("Microblock is NULL");
+            return nullptr;
+        }
+        if (!call_insn) {
+            ERROR_LOG("Call instruction is NULL");
+            return nullptr;
+        }
+
+        mop_t value;
+        value.make_insn(call_insn);
+        value.size = call_insn->d.size;
+        value.set_udt();
+
+        emitted = true; // call_insn ownership is transferred into the write helper argument.
+        AVXIntrinsic write(cdg, "__lifter_zmm_write");
+        write.add_argument_imm((uint64) virtual_return_zmm_index, BT_INT32);
+        write.add_argument_mop(value, virtual_return_type);
+        minsn_t *result = write.emit_void();
+        if (result == nullptr) {
+            ERROR_LOG("Failed to emit virtual ZMM write for zmm%d", virtual_return_zmm_index);
+        }
+        return result;
+    }
+
     if (!mov_insn) {
         ERROR_LOG("Attempted to emit intrinsic without return register set");
         return nullptr;

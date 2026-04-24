@@ -75,6 +75,8 @@ mreg_t emit_zmm_load(codegen_t &cdg, int opidx, int zmm_size = ZMM_SIZE);
 // Returns true on success, false on failure.
 bool emit_vector_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int vec_size);
 bool emit_vector_store_mop(codegen_t &cdg, int opidx, const mop_t &src_mop, const tinfo_t &vec_type, int vec_size);
+bool make_vector_load_mop(codegen_t &cdg, int opidx, mop_t &out_mop, const tinfo_t &vec_type, int vec_size,
+                          bool is_int, bool is_double);
 
 // Legacy name for backwards compatibility
 bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size = ZMM_SIZE);
