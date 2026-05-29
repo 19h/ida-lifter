@@ -86,6 +86,15 @@ struct ida_local AVXLifter : microcode_filter_t {
         ea_t ea = cdg.insn.ea;
         uint16 it = cdg.insn.itype;
 
+        // Segment-overridden (fs/gs) vector memory operands are not safely
+        // modelable by our operand-load path: emitting a ZMM/UDT-sized ldx
+        // against a segment base crashes microcode generation (INTERR 50757).
+        // Decline so IDA renders the instruction as __asm instead of aborting
+        // the whole function.
+        if (cdg.insn.segpref == R_fs || cdg.insn.segpref == R_gs) {
+            return false;
+        }
+
         if (is_zmm_direct_call(cdg.insn)) {
             return true;
         }

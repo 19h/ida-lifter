@@ -400,7 +400,13 @@ bool emit_zmm_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const
     AVXIntrinsic write(&cdg, "__writezmm");
     write.add_argument_imm((uint64) zmm_index, BT_INT32);
     write.add_argument_reg(value_reg, ti);
-    return write.emit_void() != nullptr;
+    bool ok = write.emit_void() != nullptr;
+    // The value temporary is fully consumed by __writezmm. Release it so the
+    // kreg is reused instead of leaving many large (ZMM/YMM) temporaries live
+    // across block boundaries, which trips Hex-Rays INTERR 50920.
+    if (ok && is_kreg(value_reg))
+        cdg.mba->free_kreg(value_reg, (int) ti.get_size());
+    return ok;
 }
 
 bool emit_zmm_write_mop(codegen_t &cdg, const op_t &op, const mop_t &value, const tinfo_t &ti) {
@@ -465,7 +471,10 @@ bool emit_kmask_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, con
     AVXIntrinsic write(&cdg, "__writemask");
     write.add_argument_imm((uint64) kidx, BT_INT32);
     write.add_argument_reg(value_reg, ti);
-    return write.emit_void() != nullptr;
+    bool ok = write.emit_void() != nullptr;
+    if (ok && is_kreg(value_reg))
+        cdg.mba->free_kreg(value_reg, (int) ti.get_size());
+    return ok;
 }
 
 // Store operand - handles all sizes including ZMM (64-byte)

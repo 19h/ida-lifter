@@ -29,5 +29,4 @@ seed:
 
 .PHONY: clean
 clean:
-	@rm -f _t*.c _t*.s _t*.so _t*.out _t*.dll _t*.obj _mtx_* *.o tg.* at.* \
-	      _v.* _a.* _i.* _p.* matrix_run*.log 2>/dev/null; echo cleaned
+	@rm -f _* *.o tg.* at.* matrix_run*.log 2>/dev/null; echo cleaned

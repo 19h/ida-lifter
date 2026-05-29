@@ -264,6 +264,15 @@ def idump_scan(idump: str, binpath: Path, outpath: Path):
     return total, ok, rate, interrs, err_funcs, asms
 
 
+def native_interr_funcs(idump: str, binpath: Path) -> set:
+    """Re-dump WITHOUT the lifter plugin. Any function that still INTERRs is a
+    native IDA/Hex-Rays decompiler bug, not something the lifter caused — so it
+    must not be counted as a lifter regression."""
+    r = sh(f"{idump} --pseudo-only --no-color {binpath} 2>/dev/null")
+    text = ANSI.sub("", r.stdout)
+    return {fn for fn, _code in ERRLINE.findall(text)}
+
+
 # ---------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
@@ -306,7 +315,8 @@ def main():
     grand_bins = 0
     bins_by_fmt = Counter()
     all_asm = Counter()
-    interr_findings = []     # (gen, cfg, seed, code, func)
+    interr_findings = []     # (gen, cfg, seed, code, func) — lifter-caused
+    ida_native_findings = [] # (gen, cfg, seed, code, func) — reproduce w/o lifter
     failure_findings = []    # (gen, cfg, seed, rate)
     skip_log = []            # (gen, cfg, seed, reason)
     gen_fail_log = []        # (gen, seed, stage, err)
@@ -379,19 +389,26 @@ def main():
 
                 interesting = bool(interrs) or (0 <= rate < 100.0) or bool(asms)
                 tags = []
+                lifter_caused = False
                 if interrs:
-                    # prefer the named per-function errors; else raw codes
-                    if err_funcs:
-                        for fn, code in err_funcs:
+                    # Classify: an INTERR that also reproduces WITHOUT the lifter
+                    # is a native IDA decompiler bug, not a lifter regression.
+                    native = native_interr_funcs(args.idump, binp)
+                    pairs = err_funcs if err_funcs else [("?", c) for c in set(interrs)]
+                    for fn, code in pairs:
+                        if fn != "?" and fn in native:
+                            ida_native_findings.append(
+                                (gen.stem, cfg["name"], seed, code, fn))
+                        else:
                             interr_findings.append(
                                 (gen.stem, cfg["name"], seed, code, fn))
-                    else:
-                        for code in set(interrs):
-                            interr_findings.append(
-                                (gen.stem, cfg["name"], seed, code, "?"))
-                    tags.append(f"*** INTERR {sorted(set(interrs))} ***")
+                            lifter_caused = True
+                    tags.append(f"*** INTERR {sorted(set(interrs))}"
+                                f"{' [IDA-native]' if not lifter_caused else ''} ***")
                 if 0 <= rate < 100.0:
-                    failure_findings.append((gen.stem, cfg["name"], seed, rate))
+                    # only a lifter regression if the lifter itself caused an INTERR
+                    if lifter_caused:
+                        failure_findings.append((gen.stem, cfg["name"], seed, rate))
                     tags.append(f"*** rate {rate}% ***")
                 if asms:
                     tags.append(f"asm={sum(asms.values())}")
@@ -435,7 +452,8 @@ def main():
         for g, s, stage, e in gen_fail_log:
             print(f"   {g} s{s} [{stage}]: {(e.splitlines()[0] if e else '')[:160]}")
 
-    print(f"\nINTERR findings      : {len(interr_findings)}")
+    print(f"\nLIFTER-INDUCED INTERR findings : {len(interr_findings)}  "
+          f"(these are real lifter bugs / regressions)")
     seen = set()
     for g, c, s, code, fn in interr_findings:
         key = (g, c, s, code, fn)
@@ -445,6 +463,13 @@ def main():
         print(f"   INTERR {code} in {fn}  [gen={g} config={c} seed={s}]")
         print(f"      reproduce: python3 {g}.py --funcs {args.funcs} "
               f"--seed {s} --out /tmp/{g}_{s} && build via config '{c}'")
+
+    # Native IDA decompiler bugs (reproduce without the lifter) — informational.
+    nat = sorted(set((code, fn) for _g, _c, _s, code, fn in ida_native_findings))
+    print(f"\nIDA-NATIVE INTERRs (NOT lifter bugs; reproduce w/o plugin): {len(nat)}")
+    for code, fn in nat:
+        print(f"   INTERR {code} in {fn}  (Hex-Rays bug — decompiles to the same "
+              f"INTERR with the lifter disabled)")
 
     print(f"\ndecompile failures   : {len(failure_findings)}")
     for g, c, s, rate in failure_findings:
