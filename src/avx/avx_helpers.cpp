@@ -413,6 +413,61 @@ bool emit_zmm_write_mop(codegen_t &cdg, const op_t &op, const mop_t &value, cons
     return write.emit_void() != nullptr;
 }
 
+// ---- opmask (k0-k7) modeling via __readmask/__writemask helpers ----
+
+int get_kreg_index(const op_t &op) {
+    if (op.type == o_kreg) return op.reg - R_k0;
+    if (op.type == o_reg && op.reg >= R_k0 && op.reg <= R_k7) return op.reg - R_k0;
+    return -1;
+}
+
+// Integer type wide enough to hold a mask of `num_elements` bits (__mmask8/16/32/64).
+tinfo_t kmask_type_for(int num_elements) {
+    if (num_elements <= 8)  return tinfo_t(BT_INT8);
+    if (num_elements <= 16) return tinfo_t(BT_INT16);
+    if (num_elements <= 32) return tinfo_t(BT_INT32);
+    return tinfo_t(BT_INT64);
+}
+
+minsn_t *make_kmask_read_call(codegen_t &cdg, int kidx, const tinfo_t &ti) {
+    mcallinfo_t *call_info = (mcallinfo_t *) qalloc(sizeof(mcallinfo_t));
+    new(call_info) mcallinfo_t();
+    call_info->cc = CM_CC_SPECIAL;
+    call_info->flags = FCI_SPLOK | FCI_FINAL | FCI_PROP;
+    call_info->return_type = ti;
+
+    int stk_off = 0;
+    add_helper_imm_arg(call_info, stk_off, (uint64) kidx, BT_INT32);
+
+    minsn_t *call_insn = (minsn_t *) qalloc(sizeof(minsn_t));
+    new(call_insn) minsn_t(cdg.insn.ea);
+    call_insn->opcode = m_call;
+    call_insn->l.make_helper("__readmask");
+    call_insn->d.t = mop_f;
+    call_insn->d.f = call_info;
+    call_insn->d.size = (int) ti.get_size();
+    return call_insn;
+}
+
+bool add_kmask_read_arg(codegen_t &cdg, AVXIntrinsic &icall, const op_t &op, const tinfo_t &ti) {
+    int kidx = get_kreg_index(op);
+    if (kidx < 0) return false;
+    mop_t read_mop;
+    read_mop.make_insn(make_kmask_read_call(cdg, kidx, ti));
+    read_mop.size = (int) ti.get_size();
+    icall.add_argument_mop(read_mop, ti);
+    return true;
+}
+
+bool emit_kmask_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const tinfo_t &ti) {
+    int kidx = get_kreg_index(op);
+    if (kidx < 0) return false;
+    AVXIntrinsic write(&cdg, "__writemask");
+    write.add_argument_imm((uint64) kidx, BT_INT32);
+    write.add_argument_reg(value_reg, ti);
+    return write.emit_void() != nullptr;
+}
+
 // Store operand - handles all sizes including ZMM (64-byte)
 bool store_operand_hack(codegen_t &cdg, int n, const mop_t &mop, int flags, minsn_t **outins) {
     // For large operands (> 8 bytes, i.e., XMM/YMM/ZMM), use the manual emit approach

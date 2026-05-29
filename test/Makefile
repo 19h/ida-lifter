@@ -71,6 +71,13 @@ experimental_avx10:
 avx10_report:
 	@$(MAKE) -C $(AVX10_DIR) report IDUMP=$(IDUMP)
 
+# Static check: does the lifter recognize every intrinsic in the reference CSV?
+# Parses the classification ranges/equalities in src/avx and the IDA itype enum,
+# so it needs no build or idump run. Exits non-zero if anything is uncovered.
+.PHONY: intrinsic_coverage
+intrinsic_coverage:
+	@python3 ../ref/check_intrinsic_coverage.py
+
 .PHONY: clean_experimental_avx10
 clean_experimental_avx10:
 	@$(MAKE) -C $(AVX10_DIR) clean

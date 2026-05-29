@@ -485,10 +485,14 @@ merror_t handle_vcvt_fp16(codegen_t &cdg) {
     }
 
     const char *iname = nullptr;
+    qstring namebuf;
     bool src_is_int = false;
     bool src_is_double = false;
     bool dst_is_int = false;
     bool dst_is_double = false;
+    bool has_imm = false;
+    // Intrinsic width prefix is named after the wider (full 512/256/128-bit) operand.
+    const char *wp = get_size_prefix(src_size > dst_size ? src_size : dst_size);
 
     switch (it) {
         case NN_vcvtpd2ph:
@@ -545,17 +549,48 @@ merror_t handle_vcvt_fp16(codegen_t &cdg) {
                                             : "_mm_cvtepu16_ph";
             src_is_int = true;
             break;
+        // --- integer <-> fp16 (32/64-bit element conversions) ---
+        case NN_vcvtdq2ph:  namebuf.cat_sprnt("_mm%s_cvtepi32_ph", wp); src_is_int = true; break;
+        case NN_vcvtudq2ph: namebuf.cat_sprnt("_mm%s_cvtepu32_ph", wp); src_is_int = true; break;
+        case NN_vcvtqq2ph:  namebuf.cat_sprnt("_mm%s_cvtepi64_ph", wp); src_is_int = true; break;
+        case NN_vcvtuqq2ph: namebuf.cat_sprnt("_mm%s_cvtepu64_ph", wp); src_is_int = true; break;
+        case NN_vcvtph2dq:  namebuf.cat_sprnt("_mm%s_cvtph_epi32", wp); dst_is_int = true; break;
+        case NN_vcvttph2dq: namebuf.cat_sprnt("_mm%s_cvttph_epi32", wp); dst_is_int = true; break;
+        case NN_vcvtph2udq: namebuf.cat_sprnt("_mm%s_cvtph_epu32", wp); dst_is_int = true; break;
+        case NN_vcvttph2udq:namebuf.cat_sprnt("_mm%s_cvttph_epu32", wp); dst_is_int = true; break;
+        case NN_vcvtph2qq:  namebuf.cat_sprnt("_mm%s_cvtph_epi64", wp); dst_is_int = true; break;
+        case NN_vcvttph2qq: namebuf.cat_sprnt("_mm%s_cvttph_epi64", wp); dst_is_int = true; break;
+        case NN_vcvtph2uqq: namebuf.cat_sprnt("_mm%s_cvtph_epu64", wp); dst_is_int = true; break;
+        case NN_vcvttph2uqq:namebuf.cat_sprnt("_mm%s_cvttph_epu64", wp); dst_is_int = true; break;
+        // --- F16C fp16 <-> fp32 (non-EVEX encodings) ---
+        case NN_vcvtph2ps:  namebuf.cat_sprnt("_mm%s_cvtph_ps", wp); break;
+        case NN_vcvtps2ph:  namebuf.cat_sprnt("_mm%s_cvtps_ph", wp); has_imm = true; break;
         default:
             return MERR_INSN;
     }
+    if (iname == nullptr) iname = namebuf.c_str();
 
     AVXIntrinsic icall(&cdg, iname);
     tinfo_t ti_src = get_type_robust(src_size, src_is_int, src_is_double);
     tinfo_t ti_dst = get_type_robust(dst_size, dst_is_int, dst_is_double);
 
-    icall.add_argument_reg(src, ti_src);
+    // Source: route ZMM through the read helper (not microcode-addressable).
+    if (is_zmm_reg(cdg.insn.Op2)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, ti_src)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(src, ti_src);
+    }
+    if (has_imm && cdg.insn.Op3.type == o_imm) {
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+    }
 
-    if (d != mr_none) {
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(dst_size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, ti_dst);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, ti_dst)) return MERR_INSN;
+    } else if (d != mr_none) {
         icall.set_return_reg(d, ti_dst);
         icall.emit();
         if (dst_size == XMM_SIZE) clear_upper(cdg, d);
@@ -570,6 +605,84 @@ merror_t handle_vcvt_fp16(codegen_t &cdg) {
     }
 
     return MERR_OK;
+}
+
+// Scalar conversions added by AVX-512F/FP16:
+//   * scalar fp -> unsigned/signed integer GPR  (vcvt[t]s{s,d,h}2usi, vcvt[t]sh2si)
+//   * integer GPR -> scalar fp                  (vcvtusi2s{s,d}, vcvt[u]si2sh)
+//   * scalar fp <-> scalar fp16                 (vcvts{d,s}2sh, vcvtsh2s{d,s})
+merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+
+    // --- category 1: scalar fp -> integer in a GPR (1 source) ---
+    struct G2I { uint16 it; const char *base; bool src_double; };
+    static const G2I g2i[] = {
+        {NN_vcvtsh2si,  "cvtsh_i",  false}, {NN_vcvttsh2si, "cvttsh_i", false},
+        {NN_vcvtsh2usi, "cvtsh_u",  false}, {NN_vcvttsh2usi,"cvttsh_u", false},
+        {NN_vcvtsd2usi, "cvtsd_u",  true},  {NN_vcvttsd2usi,"cvttsd_u", true},
+        {NN_vcvtss2usi, "cvtss_u",  false}, {NN_vcvttss2usi,"cvttss_u", false},
+    };
+    for (const G2I &e : g2i) {
+        if (e.it != it) continue;
+        int gsz = (int) get_dtype_size(cdg.insn.Op1.dtype);
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        if (d == mr_none) return MERR_INSN;
+        AvxOpLoader s(cdg, 1, cdg.insn.Op2);
+        qstring nm; nm.cat_sprnt("_mm_%s%d", e.base, gsz == 8 ? 64 : 32);
+        AVXIntrinsic ic(&cdg, nm.c_str());
+        ic.add_argument_reg(s, get_type_robust(XMM_SIZE, false, e.src_double));
+        ic.set_return_reg_basic(d, gsz == 8 ? BT_INT64 : BT_INT32);
+        ic.emit();
+        return MERR_OK;
+    }
+
+    // --- category 2: integer GPR -> scalar fp (dst, src1=merge xmm, src2=gpr) ---
+    struct I2F { uint16 it; const char *pre; const char *suf; bool dst_double; };
+    static const I2F i2f[] = {
+        {NN_vcvtusi2sd, "cvtu", "sd", true},  {NN_vcvtusi2ss, "cvtu", "ss", false},
+        {NN_vcvtsi2sh,  "cvti", "sh", false}, {NN_vcvtusi2sh, "cvtu", "sh", false},
+    };
+    for (const I2F &e : i2f) {
+        if (e.it != it) continue;
+        int gsz = (int) get_dtype_size(cdg.insn.Op3.dtype);
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        mreg_t a = reg2mreg(cdg.insn.Op2.reg);
+        if (d == mr_none || a == mr_none) return MERR_INSN;
+        AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        qstring nm; nm.cat_sprnt("_mm_%s%d_%s", e.pre, gsz == 8 ? 64 : 32, e.suf);
+        AVXIntrinsic ic(&cdg, nm.c_str());
+        ic.add_argument_reg(a, get_type_robust(XMM_SIZE, false, e.dst_double));
+        ic.add_argument_reg(b, gsz == 8 ? BT_INT64 : BT_INT32);
+        ic.set_return_reg(d, get_type_robust(XMM_SIZE, false, e.dst_double));
+        ic.emit();
+        clear_upper(cdg, d);
+        return MERR_OK;
+    }
+
+    // --- category 3: scalar fp <-> scalar fp16 (dst, src1=merge a, src2=b) ---
+    struct F2F { uint16 it; const char *name; bool a_double; bool b_double; };
+    static const F2F f2f[] = {
+        {NN_vcvtsd2sh, "_mm_cvtsd_sh", false, true},
+        {NN_vcvtsh2sd, "_mm_cvtsh_sd", true,  false},
+        {NN_vcvtss2sh, "_mm_cvtss_sh", false, false},
+        {NN_vcvtsh2ss, "_mm_cvtsh_ss", false, false},
+    };
+    for (const F2F &e : f2f) {
+        if (e.it != it) continue;
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        mreg_t a = reg2mreg(cdg.insn.Op2.reg);
+        if (d == mr_none || a == mr_none) return MERR_INSN;
+        AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        AVXIntrinsic ic(&cdg, e.name);
+        ic.add_argument_reg(a, get_type_robust(XMM_SIZE, false, e.a_double));
+        ic.add_argument_reg(b, get_type_robust(XMM_SIZE, false, e.b_double));
+        ic.set_return_reg(d, get_type_robust(XMM_SIZE, false, false));
+        ic.emit();
+        clear_upper(cdg, d);
+        return MERR_OK;
+    }
+
+    return MERR_INSN;
 }
 
 #endif // IDA_SDK_VERSION >= 750

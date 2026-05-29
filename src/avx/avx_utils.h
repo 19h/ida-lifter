@@ -117,6 +117,8 @@ bool is_fp16_complex_insn(uint16 it);
 
 bool is_fp16_scalar_sqrt_insn(uint16 it);
 
+bool is_fp16_scalar_misc_insn(uint16 it);
+
 bool is_shuffle_insn(uint16 it);
 
 bool is_shuf_lane_insn(uint16 it);

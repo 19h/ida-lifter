@@ -111,13 +111,15 @@ struct ida_local AVXLifter : microcode_filter_t {
                             is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
                             is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
                             is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
-                            is_fp16_scalar_sqrt_insn(it) ||
+                            is_fp16_scalar_sqrt_insn(it) || is_fp16_scalar_misc_insn(it) ||
                             is_bitwise_insn(it) || is_shift_insn(it) || is_var_shift_insn(it) ||
                             is_shift_double_insn(it) || is_multishift_insn(it) ||
                             is_rotate_insn(it) || is_var_rotate_insn(it) ||
                             is_shuffle_insn(it) || is_shuf_lane_insn(it) || is_perm_insn(it) || is_permutex_insn(it) ||
                             is_permutex2_insn(it) || is_align_insn(it) || is_blend_insn(it) ||
                             it == NN_vbroadcastss || it == NN_vbroadcastsd ||
+                            it == NN_vblendmps || it == NN_vblendmpd || it == NN_vpblendmb ||
+                            it == NN_vpblendmw || it == NN_vpblendmd || it == NN_vpblendmq ||
                             is_packed_compare_insn(it) || is_packed_int_compare_insn(it) ||
                             is_scalar_minmax(it) || is_scalar_move(it) ||
                             is_move_insn(it) || is_compress_insn(it) || is_expand_insn(it) ||
@@ -170,12 +172,24 @@ struct ida_local AVXLifter : microcode_filter_t {
                  is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
                  is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
                  is_permutex_insn(it) || is_permutex2_insn(it) || is_shuf_lane_insn(it) || is_ternary_logic_insn(it) ||
+                 it == NN_vblendmps || it == NN_vblendmpd || it == NN_vpblendmb ||
+                 it == NN_vpblendmw || it == NN_vpblendmd || it == NN_vpblendmq ||
+                 it == NN_vpbroadcastmb2q || it == NN_vpbroadcastmw2d ||
+                 it == NN_vbroadcastf32x2 || it == NN_vbroadcasti32x2 ||
+                 it == NN_vexp2ps || it == NN_vexp2pd ||
+                 it == NN_vrcp28ps || it == NN_vrcp28pd || it == NN_vrcp28ss || it == NN_vrcp28sd ||
+                 it == NN_vrsqrt28ps || it == NN_vrsqrt28pd || it == NN_vrsqrt28ss || it == NN_vrsqrt28sd ||
+                 it == NN_v4fmaddps || it == NN_v4fnmaddps || it == NN_v4fmaddss || it == NN_v4fnmaddss ||
+                 it == NN_vp4dpwssd || it == NN_vp4dpwssds ||
+                 it == NN_vcomish || it == NN_vucomish ||
+                 it == NN_vgatherpf0dps || it == NN_vgatherpf0qps || it == NN_vgatherpf0dpd || it == NN_vgatherpf0qpd ||
+                 it == NN_vscatterpf0dps || it == NN_vscatterpf0qps || it == NN_vscatterpf0dpd || it == NN_vscatterpf0qpd ||
                  is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
                  is_rotate_insn(it) || is_var_rotate_insn(it) ||
                  is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
                  is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
                  is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
-                 is_fp16_scalar_sqrt_insn(it) ||
+                 is_fp16_scalar_sqrt_insn(it) || is_fp16_scalar_misc_insn(it) ||
                  is_shift_double_insn(it) || is_multishift_insn(it) ||
                  is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
                  is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
@@ -209,7 +223,33 @@ struct ida_local AVXLifter : microcode_filter_t {
             return handle_zmm_direct_call(cdg);
         }
 
-        // Handle k-register manipulation instructions (kmov/kunpck) by emitting NOP
+        // Compare / test / classify into an opmask (k-register destination).
+        if (it == NN_vcmpps || it == NN_vcmppd || it == NN_vcmpss || it == NN_vcmpsd ||
+            it == NN_vcmpph || it == NN_vcmpsh ||
+            it == NN_vpcmpb || it == NN_vpcmpw || it == NN_vpcmpd || it == NN_vpcmpq ||
+            it == NN_vpcmpub || it == NN_vpcmpuw || it == NN_vpcmpud || it == NN_vpcmpuq)
+            return handle_v_cmp_to_mask(cdg);
+        if (it == NN_vptestmb || it == NN_vptestmw || it == NN_vptestmd || it == NN_vptestmq ||
+            it == NN_vptestnmb || it == NN_vptestnmw || it == NN_vptestnmd || it == NN_vptestnmq ||
+            it == NN_vpshufbitqmb)
+            return handle_v_2src_to_mask(cdg);
+        if (it == NN_vfpclassps || it == NN_vfpclasspd || it == NN_vfpclassss ||
+            it == NN_vfpclasssd || it == NN_vfpclassph || it == NN_vfpclasssh)
+            return handle_v_fpclass_to_mask(cdg);
+        if (it == NN_vpmovb2m || it == NN_vpmovw2m || it == NN_vpmovd2m || it == NN_vpmovq2m)
+            return handle_v_movx2m(cdg);
+        if (it == NN_vp2intersectd || it == NN_vp2intersectq)
+            return handle_v_p2intersect(cdg);
+
+        // k-register move / ALU / unpack -> modeled via __readmask/__writemask.
+        if (it >= NN_kmovw && it <= NN_kmovd)
+            return handle_kmov(cdg);
+        if (it >= NN_kaddw && it <= NN_kxord &&
+            it != NN_kortestw && it != NN_kortestb && it != NN_kortestq && it != NN_kortestd &&
+            it != NN_ktestw && it != NN_ktestb && it != NN_ktestq && it != NN_ktestd)
+            return handle_k_alu(cdg);
+
+        // kortest/ktest set EFLAGS only — emit NOP (flag effect not modeled).
         if (it >= NN_kmovw && it <= NN_kunpckdq) {
             cdg.emit(m_nop, 0, 0, 0, 0, 0);
             return MERR_OK;
@@ -254,8 +294,17 @@ struct ida_local AVXLifter : microcode_filter_t {
         if (it == NN_vcvtuqq2ps) return handle_vcvt_qq2fp(cdg, false, true);
         if (it == NN_vcvtpd2ph || it == NN_vcvtph2pd || it == NN_vcvtph2psx || it == NN_vcvtps2phx ||
             it == NN_vcvtph2w || it == NN_vcvttph2w || it == NN_vcvtph2uw || it == NN_vcvttph2uw ||
-            it == NN_vcvtw2ph || it == NN_vcvtuw2ph)
+            it == NN_vcvtw2ph || it == NN_vcvtuw2ph ||
+            it == NN_vcvtdq2ph || it == NN_vcvtudq2ph || it == NN_vcvtqq2ph || it == NN_vcvtuqq2ph ||
+            it == NN_vcvtph2dq || it == NN_vcvttph2dq || it == NN_vcvtph2udq || it == NN_vcvttph2udq ||
+            it == NN_vcvtph2qq || it == NN_vcvttph2qq || it == NN_vcvtph2uqq || it == NN_vcvttph2uqq ||
+            it == NN_vcvtph2ps || it == NN_vcvtps2ph)
             return handle_vcvt_fp16(cdg);
+        if (it == NN_vcvtsh2si || it == NN_vcvttsh2si || it == NN_vcvtsh2usi || it == NN_vcvttsh2usi ||
+            it == NN_vcvtsd2usi || it == NN_vcvttsd2usi || it == NN_vcvtss2usi || it == NN_vcvttss2usi ||
+            it == NN_vcvtusi2sd || it == NN_vcvtusi2ss || it == NN_vcvtsi2sh || it == NN_vcvtusi2sh ||
+            it == NN_vcvtsd2sh || it == NN_vcvtsh2sd || it == NN_vcvtss2sh || it == NN_vcvtsh2ss)
+            return handle_vcvt_scalar_ext(cdg);
         if (it == NN_vldmxcsr || it == NN_vstmxcsr) return handle_vmxcsr(cdg);
 
         // SAD (sum of absolute differences)
@@ -345,6 +394,26 @@ struct ida_local AVXLifter : microcode_filter_t {
         // shuffles, perms, align
         if (is_shuffle_insn(it)) return handle_v_shuffle_int(cdg);
         if (is_shuf_lane_insn(it)) return handle_v_shuf_lane(cdg);
+        if (it == NN_vblendmps || it == NN_vblendmpd || it == NN_vpblendmb ||
+            it == NN_vpblendmw || it == NN_vpblendmd || it == NN_vpblendmq)
+            return handle_v_blendm(cdg);
+        if (it == NN_vpbroadcastmb2q || it == NN_vpbroadcastmw2d)
+            return handle_v_broadcastm(cdg);
+        if (it == NN_vbroadcastf32x2 || it == NN_vbroadcasti32x2)
+            return handle_v_broadcast_x2(cdg);
+        if (it == NN_vexp2ps || it == NN_vexp2pd ||
+            it == NN_vrcp28ps || it == NN_vrcp28pd || it == NN_vrcp28ss || it == NN_vrcp28sd ||
+            it == NN_vrsqrt28ps || it == NN_vrsqrt28pd || it == NN_vrsqrt28ss || it == NN_vrsqrt28sd)
+            return handle_v_er(cdg);
+        if (it == NN_v4fmaddps || it == NN_v4fnmaddps || it == NN_v4fmaddss ||
+            it == NN_v4fnmaddss || it == NN_vp4dpwssd || it == NN_vp4dpwssds)
+            return handle_v_4fma(cdg);
+        if (it == NN_vcomish || it == NN_vucomish)
+            return handle_v_comish(cdg);
+        if (it == NN_vgatherpf0dps || it == NN_vgatherpf0qps || it == NN_vgatherpf0dpd ||
+            it == NN_vgatherpf0qpd || it == NN_vscatterpf0dps || it == NN_vscatterpf0qps ||
+            it == NN_vscatterpf0dpd || it == NN_vscatterpf0qpd)
+            return handle_v_prefetch_gs(cdg);
         if (is_perm_insn(it)) return handle_v_perm_int(cdg);
         if (is_align_insn(it)) return handle_v_align(cdg);
 
@@ -368,6 +437,7 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // fp16 sqrt
         if (is_fp16_sqrt_insn(it)) return handle_v_sqrt_ph(cdg);
+        if (is_fp16_scalar_misc_insn(it)) return handle_v_fp16_scalar_misc(cdg);
 
         // getexp/getmant/fixupimm/scalef/range/reduce
         if (is_getexp_insn(it)) return handle_v_getexp(cdg);
@@ -416,11 +486,14 @@ struct ida_local AVXLifter : microcode_filter_t {
 
         // extract/insert
         if (it == NN_vextractf128 || it == NN_vextracti128 ||
-            it == NN_vextracti32x4 || it == NN_vextracti32x8 || it == NN_vextracti64x4)
+            it == NN_vextracti32x4 || it == NN_vextracti32x8 || it == NN_vextracti64x4 ||
+            it == NN_vextractf32x4 || it == NN_vextractf32x8 ||
+            it == NN_vextractf64x2 || it == NN_vextractf64x4 || it == NN_vextracti64x2)
             return handle_vextractf128(cdg);
         if (it == NN_vinsertf128 || it == NN_vinserti128 ||
             it == NN_vinserti32x4 || it == NN_vinserti32x8 || it == NN_vinserti64x4 ||
-            it == NN_vinsertf32x4 || it == NN_vinsertf64x4)
+            it == NN_vinsertf32x4 || it == NN_vinsertf64x4 ||
+            it == NN_vinsertf32x8 || it == NN_vinsertf64x2 || it == NN_vinserti64x2)
             return handle_vinsertf128(cdg);
 
         // movdup

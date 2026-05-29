@@ -75,7 +75,15 @@ bool is_conversion_insn(uint16 it) {
            it == NN_vcvtqq2pd || it == NN_vcvtqq2ps || it == NN_vcvtuqq2pd || it == NN_vcvtuqq2ps ||
            it == NN_vcvtpd2ph || it == NN_vcvtph2pd || it == NN_vcvtph2psx || it == NN_vcvtps2phx ||
            it == NN_vcvtph2w || it == NN_vcvttph2w || it == NN_vcvtph2uw || it == NN_vcvttph2uw ||
-           it == NN_vcvtw2ph || it == NN_vcvtuw2ph;
+           it == NN_vcvtw2ph || it == NN_vcvtuw2ph ||
+           it == NN_vcvtdq2ph || it == NN_vcvtudq2ph || it == NN_vcvtqq2ph || it == NN_vcvtuqq2ph ||
+           it == NN_vcvtph2dq || it == NN_vcvttph2dq || it == NN_vcvtph2udq || it == NN_vcvttph2udq ||
+           it == NN_vcvtph2qq || it == NN_vcvttph2qq || it == NN_vcvtph2uqq || it == NN_vcvttph2uqq ||
+           it == NN_vcvtph2ps || it == NN_vcvtps2ph ||
+           it == NN_vcvtsh2si || it == NN_vcvttsh2si || it == NN_vcvtsh2usi || it == NN_vcvttsh2usi ||
+           it == NN_vcvtsd2usi || it == NN_vcvttsd2usi || it == NN_vcvtss2usi || it == NN_vcvttss2usi ||
+           it == NN_vcvtusi2sd || it == NN_vcvtusi2ss || it == NN_vcvtsi2sh || it == NN_vcvtusi2sh ||
+           it == NN_vcvtsd2sh || it == NN_vcvtsh2sd || it == NN_vcvtss2sh || it == NN_vcvtsh2ss;
 }
 
 bool is_sad_insn(uint16 it) {
@@ -197,7 +205,13 @@ bool is_fp16_sqrt_insn(uint16 it) {
 
 bool is_fp16_fma_insn(uint16 it) {
     return it == NN_vfmadd132ph || it == NN_vfmadd213ph || it == NN_vfmadd231ph ||
-           it == NN_vfmadd132sh || it == NN_vfmadd213sh || it == NN_vfmadd231sh;
+           it == NN_vfmadd132sh || it == NN_vfmadd213sh || it == NN_vfmadd231sh ||
+           it == NN_vfmsub132ph || it == NN_vfmsub213ph || it == NN_vfmsub231ph ||
+           it == NN_vfmsub132sh || it == NN_vfmsub213sh || it == NN_vfmsub231sh ||
+           it == NN_vfnmadd132ph || it == NN_vfnmadd213ph || it == NN_vfnmadd231ph ||
+           it == NN_vfnmadd132sh || it == NN_vfnmadd213sh || it == NN_vfnmadd231sh ||
+           it == NN_vfnmsub132ph || it == NN_vfnmsub213ph || it == NN_vfnmsub231ph ||
+           it == NN_vfnmsub132sh || it == NN_vfnmsub213sh || it == NN_vfnmsub231sh;
 }
 
 bool is_fp16_fmaddsub_insn(uint16 it) {
@@ -205,11 +219,18 @@ bool is_fp16_fmaddsub_insn(uint16 it) {
 }
 
 bool is_fp16_complex_insn(uint16 it) {
-    return it == NN_vfcmulcph || it == NN_vfmulcph || it == NN_vfcmaddcph || it == NN_vfmaddcph;
+    return it == NN_vfcmulcph || it == NN_vfmulcph || it == NN_vfcmaddcph || it == NN_vfmaddcph ||
+           it == NN_vfcmulcsh || it == NN_vfmulcsh || it == NN_vfcmaddcsh || it == NN_vfmaddcsh;
 }
 
 bool is_fp16_scalar_sqrt_insn(uint16 it) {
     return it == NN_vsqrtsh;
+}
+
+bool is_fp16_scalar_misc_insn(uint16 it) {
+    return it == NN_vrcpsh || it == NN_vrsqrtsh || it == NN_vgetexpsh ||
+           it == NN_vscalefsh || it == NN_vgetmantsh || it == NN_vreducesh ||
+           it == NN_vrndscalesh;
 }
 
 bool is_shuffle_insn(uint16 it) {
@@ -233,7 +254,9 @@ bool is_permutex_insn(uint16 it) {
 
 bool is_permutex2_insn(uint16 it) {
     return it == NN_vpermt2b || it == NN_vpermt2w || it == NN_vpermt2d ||
-           it == NN_vpermt2q || it == NN_vpermt2ps || it == NN_vpermt2pd;
+           it == NN_vpermt2q || it == NN_vpermt2ps || it == NN_vpermt2pd ||
+           it == NN_vpermi2b || it == NN_vpermi2w || it == NN_vpermi2d ||
+           it == NN_vpermi2q || it == NN_vpermi2ps || it == NN_vpermi2pd;
 }
 
 bool is_align_insn(uint16 it) {
@@ -375,7 +398,13 @@ bool is_extract_insert_insn(uint16 it) {
            it == NN_vextracti32x4 || it == NN_vextracti32x8 ||
            it == NN_vextracti64x4 || it == NN_vinserti32x4 ||
            it == NN_vinserti32x8 || it == NN_vinserti64x4 ||
-           it == NN_vinsertf32x4 || it == NN_vinsertf64x4;
+           it == NN_vinsertf32x4 || it == NN_vinsertf64x4 ||
+           // AVX-512DQ / extra lane extract+insert variants
+           it == NN_vextractf32x4 || it == NN_vextractf32x8 ||
+           it == NN_vextractf64x2 || it == NN_vextractf64x4 ||
+           it == NN_vextracti64x2 ||
+           it == NN_vinsertf32x8 || it == NN_vinsertf64x2 ||
+           it == NN_vinserti64x2;
 }
 
 bool is_movdup_insn(uint16 it) {
@@ -556,7 +585,7 @@ bool is_pmovwb_insn(uint16 it) {
 }
 
 bool is_pmov_down_insn(uint16 it) {
-    return it == NN_vpmovdb || it == NN_vpmovdw || it == NN_vpmovqb || it == NN_vpmovqd ||
+    return it == NN_vpmovdb || it == NN_vpmovdw || it == NN_vpmovqb || it == NN_vpmovqd || it == NN_vpmovqw ||
            it == NN_vpmovsdb || it == NN_vpmovsdw || it == NN_vpmovsqb || it == NN_vpmovsqd ||
            it == NN_vpmovsqw || it == NN_vpmovusdb || it == NN_vpmovusdw || it == NN_vpmovusqb ||
            it == NN_vpmovusqd || it == NN_vpmovusqw;

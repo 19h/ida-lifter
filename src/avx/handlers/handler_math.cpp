@@ -286,6 +286,7 @@ merror_t handle_v_fma_ph(codegen_t &cdg) {
 
     int order = 0;
     bool is_scalar = false;
+    const char *op = "fmadd";
 
     switch (cdg.insn.itype) {
         case NN_vfmadd132ph: order = 132; break;
@@ -294,14 +295,32 @@ merror_t handle_v_fma_ph(codegen_t &cdg) {
         case NN_vfmadd132sh: order = 132; is_scalar = true; break;
         case NN_vfmadd213sh: order = 213; is_scalar = true; break;
         case NN_vfmadd231sh: order = 231; is_scalar = true; break;
+        case NN_vfmsub132ph: order = 132; op = "fmsub"; break;
+        case NN_vfmsub213ph: order = 213; op = "fmsub"; break;
+        case NN_vfmsub231ph: order = 231; op = "fmsub"; break;
+        case NN_vfmsub132sh: order = 132; op = "fmsub"; is_scalar = true; break;
+        case NN_vfmsub213sh: order = 213; op = "fmsub"; is_scalar = true; break;
+        case NN_vfmsub231sh: order = 231; op = "fmsub"; is_scalar = true; break;
+        case NN_vfnmadd132ph: order = 132; op = "fnmadd"; break;
+        case NN_vfnmadd213ph: order = 213; op = "fnmadd"; break;
+        case NN_vfnmadd231ph: order = 231; op = "fnmadd"; break;
+        case NN_vfnmadd132sh: order = 132; op = "fnmadd"; is_scalar = true; break;
+        case NN_vfnmadd213sh: order = 213; op = "fnmadd"; is_scalar = true; break;
+        case NN_vfnmadd231sh: order = 231; op = "fnmadd"; is_scalar = true; break;
+        case NN_vfnmsub132ph: order = 132; op = "fnmsub"; break;
+        case NN_vfnmsub213ph: order = 213; op = "fnmsub"; break;
+        case NN_vfnmsub231ph: order = 231; op = "fnmsub"; break;
+        case NN_vfnmsub132sh: order = 132; op = "fnmsub"; is_scalar = true; break;
+        case NN_vfnmsub213sh: order = 213; op = "fnmsub"; is_scalar = true; break;
+        case NN_vfnmsub231sh: order = 231; op = "fnmsub"; is_scalar = true; break;
         default: return MERR_INSN;
     }
 
     qstring base_name;
     if (is_scalar) {
-        base_name = "_mm_fmadd_sh";
+        base_name.cat_sprnt("_mm_%s_sh", op);
     } else {
-        base_name.cat_sprnt("_mm%s_fmadd_ph", get_size_prefix(size));
+        base_name.cat_sprnt("_mm%s_%s_ph", get_size_prefix(size), op);
     }
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, WORD_SIZE);
@@ -363,11 +382,16 @@ merror_t handle_v_complex_ph(codegen_t &cdg) {
 
     const char *op = nullptr;
     bool is_ternary = false;
+    bool is_scalar = false;
     switch (cdg.insn.itype) {
         case NN_vfcmulcph: op = "fcmul"; break;
         case NN_vfmulcph: op = "fmul"; break;
         case NN_vfcmaddcph: op = "fcmadd"; is_ternary = true; break;
         case NN_vfmaddcph: op = "fmadd"; is_ternary = true; break;
+        case NN_vfcmulcsh: op = "fcmul"; is_scalar = true; break;
+        case NN_vfmulcsh: op = "fmul"; is_scalar = true; break;
+        case NN_vfcmaddcsh: op = "fcmadd"; is_ternary = true; is_scalar = true; break;
+        case NN_vfmaddcsh: op = "fmadd"; is_ternary = true; is_scalar = true; break;
         default: return MERR_INSN;
     }
 
@@ -377,11 +401,15 @@ merror_t handle_v_complex_ph(codegen_t &cdg) {
     }
 
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_%s_pch", get_size_prefix(size), op);
+    if (is_scalar) {
+        base_name.cat_sprnt("_mm_%s_sch", op);
+    } else {
+        base_name.cat_sprnt("_mm%s_%s_pch", get_size_prefix(size), op);
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
 
     AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(size, false, false);
+    tinfo_t ti = get_type_robust(is_scalar ? XMM_SIZE : size, false, false);
 
     if (mask.has_mask) {
         if (!mask.is_zeroing) {
@@ -2067,6 +2095,50 @@ merror_t handle_vsad(codegen_t &cdg) {
     icall.emit();
 
     if (size == XMM_SIZE) clear_upper(cdg, d);
+    return MERR_OK;
+}
+
+// Scalar FP16 unary/binary math that lacks a generic-handler home:
+//   vrcpsh, vrsqrtsh, vgetexpsh, vscalefsh           (dst, a, b)
+//   vgetmantsh, vreducesh, vrndscalesh               (dst, a, b, imm8)
+merror_t handle_v_fp16_scalar_misc(codegen_t &cdg) {
+    const char *base = nullptr;
+    bool has_imm = false;
+    switch (cdg.insn.itype) {
+        case NN_vrcpsh:      base = "_mm_rcp_sh";        break;
+        case NN_vrsqrtsh:    base = "_mm_rsqrt_sh";      break;
+        case NN_vgetexpsh:   base = "_mm_getexp_sh";     break;
+        case NN_vscalefsh:   base = "_mm_scalef_sh";     break;
+        case NN_vgetmantsh:  base = "_mm_getmant_sh";    has_imm = true; break;
+        case NN_vreducesh:   base = "_mm_reduce_sh";     has_imm = true; break;
+        case NN_vrndscalesh: base = "_mm_roundscale_sh"; has_imm = true; break;
+        default: return MERR_INSN;
+    }
+
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    mreg_t a = reg2mreg(cdg.insn.Op2.reg);
+    if (d == mr_none || a == mr_none) return MERR_INSN;
+    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, WORD_SIZE);
+    if (mask.has_mask) load_mask_operand(cdg, mask);
+    qstring iname = make_masked_intrinsic_name(base, mask);
+
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) icall.add_argument_reg(d, ti);
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+    icall.add_argument_reg(a, ti);
+    icall.add_argument_reg(b, ti);
+    if (has_imm && cdg.insn.Op4.type == o_imm) {
+        icall.add_argument_imm(cdg.insn.Op4.value, BT_INT32);
+    }
+    icall.set_return_reg(d, ti);
+    icall.emit();
+    clear_upper(cdg, d);
     return MERR_OK;
 }
 

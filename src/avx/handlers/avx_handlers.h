@@ -43,6 +43,10 @@ merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned);
 
 merror_t handle_vcvt_fp16(codegen_t &cdg);
 
+merror_t handle_vcvt_scalar_ext(codegen_t &cdg);
+
+merror_t handle_v_fp16_scalar_misc(codegen_t &cdg);
+
 merror_t handle_vmxcsr(codegen_t &cdg);
 
 // SAD (Sum of Absolute Differences)
@@ -158,6 +162,34 @@ merror_t handle_vmovw(codegen_t &cdg);
 merror_t handle_v_shuffle_int(codegen_t &cdg);
 
 merror_t handle_v_shuf_lane(codegen_t &cdg);
+
+merror_t handle_v_blendm(codegen_t &cdg);
+
+merror_t handle_v_4fma(codegen_t &cdg);
+
+merror_t handle_v_p2intersect(codegen_t &cdg);
+
+merror_t handle_v_prefetch_gs(codegen_t &cdg);
+
+merror_t handle_v_comish(codegen_t &cdg);
+
+merror_t handle_v_movx2m(codegen_t &cdg);
+
+merror_t handle_v_er(codegen_t &cdg);
+
+merror_t handle_k_alu(codegen_t &cdg);
+
+merror_t handle_kmov(codegen_t &cdg);
+
+merror_t handle_v_cmp_to_mask(codegen_t &cdg);
+
+merror_t handle_v_2src_to_mask(codegen_t &cdg);
+
+merror_t handle_v_fpclass_to_mask(codegen_t &cdg);
+
+merror_t handle_v_broadcastm(codegen_t &cdg);
+
+merror_t handle_v_broadcast_x2(codegen_t &cdg);
 
 merror_t handle_v_perm_int(codegen_t &cdg);
 

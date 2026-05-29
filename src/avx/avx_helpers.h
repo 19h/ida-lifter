@@ -89,6 +89,15 @@ bool add_zmm_read_arg(codegen_t &cdg, AVXIntrinsic &icall, const op_t &op, const
 bool emit_zmm_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const tinfo_t &ti);
 bool emit_zmm_write_mop(codegen_t &cdg, const op_t &op, const mop_t &value, const tinfo_t &ti);
 
+// Opmask (k0-k7) registers are not microcode-addressable either. These model
+// explicit k-register operands/results with __readmask/__writemask helper calls,
+// mirroring the ZMM helpers. The mask value is an integer of `num_elements` bits.
+int get_kreg_index(const op_t &op);
+tinfo_t kmask_type_for(int num_elements);
+minsn_t *make_kmask_read_call(codegen_t &cdg, int kidx, const tinfo_t &ti);
+bool add_kmask_read_arg(codegen_t &cdg, AVXIntrinsic &icall, const op_t &op, const tinfo_t &ti);
+bool emit_kmask_write_call(codegen_t &cdg, const op_t &op, mreg_t value_reg, const tinfo_t &ti);
+
 // AVX-512 masking support
 // Check if instruction has opmask in Op6 (EVEX encoding stores mask in Op6)
 bool has_opmask(const insn_t &insn);

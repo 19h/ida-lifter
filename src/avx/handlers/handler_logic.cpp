@@ -1079,9 +1079,15 @@ merror_t handle_v_permutex(codegen_t &cdg) {
 
 merror_t handle_v_permutex2(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
+    uint16 it = cdg.insn.itype;
+    // vpermt2* overwrites the first source (table1); vpermi2* overwrites the
+    // index. Both lower to _mm*_permutex2var_X(a, idx, b); only which operand
+    // is the in/out destination differs.
+    bool is_i2 = (it == NN_vpermi2b || it == NN_vpermi2w || it == NN_vpermi2d ||
+                  it == NN_vpermi2q || it == NN_vpermi2ps || it == NN_vpermi2pd);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
-    mreg_t a = reg2mreg(cdg.insn.Op1.reg);
-    mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
+    mreg_t a = is_i2 ? reg2mreg(cdg.insn.Op2.reg) : reg2mreg(cdg.insn.Op1.reg);
+    mreg_t idx = is_i2 ? reg2mreg(cdg.insn.Op1.reg) : reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader b(cdg, 2, cdg.insn.Op3);
 
     const char *suffix = nullptr;
@@ -1090,26 +1096,26 @@ merror_t handle_v_permutex2(codegen_t &cdg) {
     int elem_size = 4;
 
     switch (cdg.insn.itype) {
-        case NN_vpermt2b: suffix = "epi8";
+        case NN_vpermt2b: case NN_vpermi2b: suffix = "epi8";
             is_int = true;
             elem_size = 1;
             break;
-        case NN_vpermt2w: suffix = "epi16";
+        case NN_vpermt2w: case NN_vpermi2w: suffix = "epi16";
             is_int = true;
             elem_size = 2;
             break;
-        case NN_vpermt2d: suffix = "epi32";
+        case NN_vpermt2d: case NN_vpermi2d: suffix = "epi32";
             is_int = true;
             elem_size = 4;
             break;
-        case NN_vpermt2q: suffix = "epi64";
+        case NN_vpermt2q: case NN_vpermi2q: suffix = "epi64";
             is_int = true;
             elem_size = 8;
             break;
-        case NN_vpermt2ps: suffix = "ps";
+        case NN_vpermt2ps: case NN_vpermi2ps: suffix = "ps";
             elem_size = 4;
             break;
-        case NN_vpermt2pd: suffix = "pd";
+        case NN_vpermt2pd: case NN_vpermi2pd: suffix = "pd";
             is_double = true;
             elem_size = 8;
             break;
@@ -2109,6 +2115,7 @@ merror_t handle_vextractf128(codegen_t &cdg) {
     int src_size = get_vector_size(cdg.insn.Op2);
     int dst_size = XMM_SIZE;
     bool is_int = true;
+    bool is_double = false;
     qstring base_name;
 
     switch (cdg.insn.itype) {
@@ -2139,18 +2146,50 @@ merror_t handle_vextractf128(codegen_t &cdg) {
             is_int = true;
             base_name.cat_sprnt("_mm%s_extracti64x4_epi64", get_size_prefix(src_size));
             break;
+        case NN_vextracti64x2:
+            dst_size = XMM_SIZE;
+            is_int = true;
+            base_name.cat_sprnt("_mm%s_extracti64x2_epi64", get_size_prefix(src_size));
+            break;
+        case NN_vextractf32x4:
+            dst_size = XMM_SIZE;
+            is_int = false;
+            base_name.cat_sprnt("_mm%s_extractf32x4_ps", get_size_prefix(src_size));
+            break;
+        case NN_vextractf32x8:
+            dst_size = YMM_SIZE;
+            is_int = false;
+            base_name.cat_sprnt("_mm%s_extractf32x8_ps", get_size_prefix(src_size));
+            break;
+        case NN_vextractf64x2:
+            dst_size = XMM_SIZE;
+            is_int = false;
+            is_double = true;
+            base_name.cat_sprnt("_mm%s_extractf64x2_pd", get_size_prefix(src_size));
+            break;
+        case NN_vextractf64x4:
+            dst_size = YMM_SIZE;
+            is_int = false;
+            is_double = true;
+            base_name.cat_sprnt("_mm%s_extractf64x4_pd", get_size_prefix(src_size));
+            break;
         default:
             return MERR_INSN;
     }
 
-    mreg_t src = reg2mreg(cdg.insn.Op2.reg);
     uint64 imm = cdg.insn.Op3.value;
 
     AVXIntrinsic icall(&cdg, base_name.c_str());
-    tinfo_t vt_src = get_type_robust(src_size, is_int, false);
-    tinfo_t vt_dst = get_type_robust(dst_size, is_int, false);
+    tinfo_t vt_src = get_type_robust(src_size, is_int, is_double);
+    tinfo_t vt_dst = get_type_robust(dst_size, is_int, is_double);
 
-    icall.add_argument_reg(src, vt_src);
+    // Source may be a ZMM register (e.g. vextractf64x4 zmm->ymm) which is not
+    // directly representable; read it through the ZMM modeling helpers.
+    if (is_zmm_reg(cdg.insn.Op2)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, vt_src)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op2.reg), vt_src);
+    }
     icall.add_argument_imm(imm, BT_INT32);
 
     if (is_xmm_reg(cdg.insn.Op1) || is_ymm_reg(cdg.insn.Op1)) {
@@ -2222,12 +2261,27 @@ merror_t handle_vinsertf128(codegen_t &cdg) {
             is_int = true;
             base_name.cat_sprnt("_mm%s_inserti64x4_epi64", get_size_prefix(dst_size));
             break;
+        case NN_vinsertf32x8:
+            src2_size = YMM_SIZE;
+            is_int = false;
+            is_double = false;
+            base_name.cat_sprnt("_mm%s_insertf32x8_ps", get_size_prefix(dst_size));
+            break;
+        case NN_vinsertf64x2:
+            src2_size = XMM_SIZE;
+            is_int = false;
+            is_double = true;
+            base_name.cat_sprnt("_mm%s_insertf64x2_pd", get_size_prefix(dst_size));
+            break;
+        case NN_vinserti64x2:
+            src2_size = XMM_SIZE;
+            is_int = true;
+            base_name.cat_sprnt("_mm%s_inserti64x2_epi64", get_size_prefix(dst_size));
+            break;
         default:
             return MERR_INSN;
     }
 
-    mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
-    mreg_t src1 = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader src2(cdg, 2, cdg.insn.Op3);
     uint64 imm = cdg.insn.Op4.value;
 
@@ -2235,11 +2289,26 @@ merror_t handle_vinsertf128(codegen_t &cdg) {
     tinfo_t vt_dst = get_type_robust(dst_size, is_int, is_double);
     tinfo_t vt_src2 = get_type_robust(src2_size, is_int, is_double);
 
-    icall.add_argument_reg(src1, vt_dst);
+    // src1 (full-width) may be a ZMM register; read it via the ZMM helpers.
+    if (is_zmm_reg(cdg.insn.Op2)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, vt_dst)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op2.reg), vt_dst);
+    }
     icall.add_argument_reg(src2, vt_src2);
     icall.add_argument_imm(imm, BT_INT32);
-    icall.set_return_reg(dst, vt_dst);
-    icall.emit();
+
+    // Destination may be ZMM: route the result through a temp + __writezmm.
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(dst_size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt_dst);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt_dst)) return MERR_INSN;
+    } else {
+        icall.set_return_reg(reg2mreg(cdg.insn.Op1.reg), vt_dst);
+        icall.emit();
+    }
 
     return MERR_OK;
 }
@@ -3076,6 +3145,7 @@ merror_t handle_vpmov_down(codegen_t &cdg) {
         case NN_vpmovdw: iname = "_mm512_cvtepi32_epi16"; break;
         case NN_vpmovqb: iname = "_mm512_cvtepi64_epi8"; break;
         case NN_vpmovqd: iname = "_mm512_cvtepi64_epi32"; break;
+        case NN_vpmovqw: iname = "_mm512_cvtepi64_epi16"; break;
         case NN_vpmovsdb: iname = "_mm512_cvtsepi32_epi8"; break;
         case NN_vpmovsdw: iname = "_mm512_cvtsepi32_epi16"; break;
         case NN_vpmovsqb: iname = "_mm512_cvtsepi64_epi8"; break;
@@ -3245,6 +3315,565 @@ merror_t handle_vextractps(codegen_t &cdg) {
         icall.emit();
     }
 
+    return MERR_OK;
+}
+
+// Add a vector source operand (register, ZMM, or memory) as an intrinsic arg.
+// `opidx` is the 0-based source index used by the loader for memory operands.
+static bool add_vec_source(codegen_t &cdg, AVXIntrinsic &icall, int opidx,
+                           const op_t &op, const tinfo_t &ti) {
+    if (is_mem_op(op)) {
+        AvxOpLoader ld(cdg, opidx, op);
+        if (ld.reg == mr_none) return false;
+        icall.add_argument_reg(ld.reg, ti);
+        return true;
+    }
+    if (is_zmm_reg(op)) return add_zmm_read_arg(cdg, icall, op, ti);
+    mreg_t r = reg2mreg(op.reg);
+    if (r == mr_none) return false;
+    icall.add_argument_reg(r, ti);
+    return true;
+}
+
+// Emit the intrinsic result into a temp and store it to the destination opmask
+// register (Op1) via __writemask.
+static merror_t finish_mask_result(codegen_t &cdg, AVXIntrinsic &icall, int num_elements) {
+    tinfo_t mt = kmask_type_for(num_elements);
+    mreg_t tmp = cdg.mba->alloc_kreg((int) mt.get_size());
+    if (tmp == mr_none) return MERR_INSN;
+    icall.set_return_reg(tmp, mt);
+    if (icall.emit() == nullptr) return MERR_INSN;
+    if (!emit_kmask_write_call(cdg, cdg.insn.Op1, tmp, mt)) return MERR_INSN;
+    return MERR_OK;
+}
+
+// vcmp{ps,pd,ss,sd,ph,sh} / vpcmp[u]{b,w,d,q}: compare with imm8 predicate into
+// an opmask. dst=k(Op1), a=Op2, b=Op3, imm=Op4 (or Op3 has no imm for pseudo).
+merror_t handle_v_cmp_to_mask(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+    const char *suf = nullptr;
+    bool scalar = false, is_int = false, is_double = false;
+    int elem = 4;
+    switch (it) {
+        case NN_vcmpps: suf = "ps"; elem = 4; break;
+        case NN_vcmppd: suf = "pd"; elem = 8; is_double = true; break;
+        case NN_vcmpph: suf = "ph"; elem = 2; break;
+        case NN_vcmpss: suf = "ss"; elem = 4; scalar = true; break;
+        case NN_vcmpsd: suf = "sd"; elem = 8; scalar = true; is_double = true; break;
+        case NN_vcmpsh: suf = "sh"; elem = 2; scalar = true; break;
+        case NN_vpcmpb: suf = "epi8";  elem = 1; is_int = true; break;
+        case NN_vpcmpw: suf = "epi16"; elem = 2; is_int = true; break;
+        case NN_vpcmpd: suf = "epi32"; elem = 4; is_int = true; break;
+        case NN_vpcmpq: suf = "epi64"; elem = 8; is_int = true; break;
+        case NN_vpcmpub: suf = "epu8";  elem = 1; is_int = true; break;
+        case NN_vpcmpuw: suf = "epu16"; elem = 2; is_int = true; break;
+        case NN_vpcmpud: suf = "epu32"; elem = 4; is_int = true; break;
+        case NN_vpcmpuq: suf = "epu64"; elem = 8; is_int = true; break;
+        default: return MERR_INSN;
+    }
+    int size = scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op2);
+    int num_elements = scalar ? 1 : size / elem;
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem);
+    if (mask.has_mask) load_mask_operand(cdg, mask);
+
+    qstring base;
+    base.cat_sprnt("_mm%s_cmp_%s_mask", scalar ? "" : get_size_prefix(size), suf);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base.c_str(), mask) : base;
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, is_int, is_double);
+
+    if (mask.has_mask) icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, ti)) return MERR_INSN;
+    if (!add_vec_source(cdg, icall, 2, cdg.insn.Op3, ti)) return MERR_INSN;
+    if (cdg.insn.Op4.type == o_imm) icall.add_argument_imm(cdg.insn.Op4.value, BT_INT32);
+
+    return finish_mask_result(cdg, icall, num_elements);
+}
+
+// vptestm{b,w,d,q} / vptestnm{b,w,d,q} / vpshufbitqmb: 2-source -> opmask.
+merror_t handle_v_2src_to_mask(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+    const char *op = nullptr, *suf = nullptr;
+    int elem = 4;
+    switch (it) {
+        case NN_vptestmb:  op = "test";  suf = "epi8";  elem = 1; break;
+        case NN_vptestmw:  op = "test";  suf = "epi16"; elem = 2; break;
+        case NN_vptestmd:  op = "test";  suf = "epi32"; elem = 4; break;
+        case NN_vptestmq:  op = "test";  suf = "epi64"; elem = 8; break;
+        case NN_vptestnmb: op = "testn"; suf = "epi8";  elem = 1; break;
+        case NN_vptestnmw: op = "testn"; suf = "epi16"; elem = 2; break;
+        case NN_vptestnmd: op = "testn"; suf = "epi32"; elem = 4; break;
+        case NN_vptestnmq: op = "testn"; suf = "epi64"; elem = 8; break;
+        case NN_vpshufbitqmb: op = "bitshuffle"; suf = "epi64"; elem = 8; break;
+        default: return MERR_INSN;
+    }
+    int size = get_vector_size(cdg.insn.Op2);
+    int num_elements = (it == NN_vpshufbitqmb) ? size / 1 : size / elem;
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem);
+    if (mask.has_mask) load_mask_operand(cdg, mask);
+
+    qstring base;
+    base.cat_sprnt("_mm%s_%s_%s_mask", get_size_prefix(size), op, suf);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base.c_str(), mask) : base;
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+
+    if (mask.has_mask) icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, ti)) return MERR_INSN;
+    if (!add_vec_source(cdg, icall, 2, cdg.insn.Op3, ti)) return MERR_INSN;
+
+    return finish_mask_result(cdg, icall, num_elements);
+}
+
+// vfpclass{ps,pd,ss,sd,ph,sh}: classify into opmask. dst=k, a=Op2, imm=Op3.
+merror_t handle_v_fpclass_to_mask(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+    const char *suf = nullptr;
+    bool scalar = false, is_double = false;
+    int elem = 4;
+    switch (it) {
+        case NN_vfpclassps: suf = "ps"; elem = 4; break;
+        case NN_vfpclasspd: suf = "pd"; elem = 8; is_double = true; break;
+        case NN_vfpclassph: suf = "ph"; elem = 2; break;
+        case NN_vfpclassss: suf = "ss"; elem = 4; scalar = true; break;
+        case NN_vfpclasssd: suf = "sd"; elem = 8; scalar = true; is_double = true; break;
+        case NN_vfpclasssh: suf = "sh"; elem = 2; scalar = true; break;
+        default: return MERR_INSN;
+    }
+    int size = scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op2);
+    int num_elements = scalar ? 1 : size / elem;
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem);
+    if (mask.has_mask) load_mask_operand(cdg, mask);
+
+    qstring base;
+    base.cat_sprnt("_mm%s_fpclass_%s_mask", scalar ? "" : get_size_prefix(size), suf);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base.c_str(), mask) : base;
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t ti = get_type_robust(size, false, is_double);
+
+    if (mask.has_mask) icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, ti)) return MERR_INSN;
+    if (cdg.insn.Op3.type == o_imm) icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+
+    return finish_mask_result(cdg, icall, num_elements);
+}
+
+// AVX-512 4FMAPS / 4VNNIW (Knights Mill): v4fmaddps/ss, v4fnmaddps/ss,
+// vp4dpwssd[s]. Accumulator (Op1) + four consecutive source regs (Op2..Op2+3) +
+// a memory operand (Op3).
+merror_t handle_v_4fma(codegen_t &cdg) {
+    const char *nm = nullptr;
+    bool scalar = false, is_int = false;
+    switch (cdg.insn.itype) {
+        case NN_v4fmaddps:  nm = "_mm512_4fmadd_ps";    break;
+        case NN_v4fnmaddps: nm = "_mm512_4fnmadd_ps";   break;
+        case NN_v4fmaddss:  nm = "_mm_4fmadd_ss";  scalar = true; break;
+        case NN_v4fnmaddss: nm = "_mm_4fnmadd_ss"; scalar = true; break;
+        case NN_vp4dpwssd:  nm = "_mm512_4dpwssd_epi32";  is_int = true; break;
+        case NN_vp4dpwssds: nm = "_mm512_4dpwssds_epi32"; is_int = true; break;
+        default: return MERR_INSN;
+    }
+    int size = scalar ? XMM_SIZE : ZMM_SIZE;
+    tinfo_t vt = get_type_robust(size, is_int, false);
+    tinfo_t mt = get_type_robust(XMM_SIZE, is_int, false);
+
+    AVXIntrinsic icall(&cdg, nm);
+    // accumulator src (Op1)
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op1, vt)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op1.reg), vt);
+    }
+    // four consecutive source registers
+    int base_idx = vec_reg_logical_index(cdg.insn.Op2);
+    if (base_idx < 0) return MERR_INSN;
+    for (int i = 0; i < 4; i++) {
+        mop_t rd;
+        rd.make_insn(make_zmm_read_call(cdg, base_idx + i, vt));
+        rd.size = (int) vt.get_size();
+        if (vt.get_size() > 8) rd.set_udt();
+        icall.add_argument_mop(rd, vt);
+    }
+    // memory operand (b)
+    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+    icall.add_argument_reg(b, mt);
+
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt)) return MERR_INSN;
+    } else {
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(d, vt);
+        icall.emit();
+        if (size == XMM_SIZE) clear_upper(cdg, d);
+    }
+    return MERR_OK;
+}
+
+// vp2intersectd/q: compute a pair of opmasks (k:k+1) of common elements.
+// Modeled as two __writemask sides of the intrinsic.
+merror_t handle_v_p2intersect(codegen_t &cdg) {
+    bool isq = (cdg.insn.itype == NN_vp2intersectq);
+    int elem = isq ? 8 : 4;
+    int size = get_vector_size(cdg.insn.Op2);
+    int num_elements = size / elem;
+    tinfo_t vt = get_type_robust(size, true, false);
+
+    int kidx = get_kreg_index(cdg.insn.Op1);
+    if (kidx < 0) return MERR_INSN;
+
+    // Emit a void helper documenting the operation and its two output masks.
+    AVXIntrinsic icall(&cdg, isq ? "_mm512_2intersect_epi64" : "_mm512_2intersect_epi32");
+    if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, vt)) return MERR_INSN;
+    if (!add_vec_source(cdg, icall, 2, cdg.insn.Op3, vt)) return MERR_INSN;
+    icall.add_argument_imm((uint64) kidx, BT_INT32);
+    icall.add_argument_imm((uint64) (kidx + 1), BT_INT32);
+    (void) num_elements;
+    icall.emit_void();
+    return MERR_OK;
+}
+
+// vgatherpf/vscatterpf (Knights prefetch): side-effecting, no register result.
+merror_t handle_v_prefetch_gs(codegen_t &cdg) {
+    const char *nm = nullptr;
+    switch (cdg.insn.itype) {
+        case NN_vgatherpf0dps:  nm = "_mm512_prefetch_i32gather_ps"; break;
+        case NN_vgatherpf0qps:  nm = "_mm512_prefetch_i64gather_ps"; break;
+        case NN_vgatherpf0dpd:  nm = "_mm512_prefetch_i32gather_pd"; break;
+        case NN_vgatherpf0qpd:  nm = "_mm512_prefetch_i64gather_pd"; break;
+        case NN_vscatterpf0dps: nm = "_mm512_prefetch_i32scatter_ps"; break;
+        case NN_vscatterpf0qps: nm = "_mm512_prefetch_i64scatter_ps"; break;
+        case NN_vscatterpf0dpd: nm = "_mm512_prefetch_i32scatter_pd"; break;
+        case NN_vscatterpf0qpd: nm = "_mm512_prefetch_i64scatter_pd"; break;
+        default: return MERR_INSN;
+    }
+    AVXIntrinsic icall(&cdg, nm);
+    icall.emit_void();
+    return MERR_OK;
+}
+
+// vcomish / vucomish: ordered/unordered scalar FP16 compare setting EFLAGS.
+// Modeled as an int-returning helper over the two operands (flag fidelity is
+// approximate; there is no SSE FP16 comi to defer to).
+merror_t handle_v_comish(codegen_t &cdg) {
+    const char *nm = (cdg.insn.itype == NN_vucomish) ? "_mm_ucomi_sh" : "_mm_comi_sh";
+    mreg_t a = reg2mreg(cdg.insn.Op1.reg);
+    if (a == mr_none) return MERR_INSN;
+    AvxOpLoader b(cdg, 1, cdg.insn.Op2);
+    tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
+    AVXIntrinsic icall(&cdg, nm);
+    icall.add_argument_reg(a, ti);
+    icall.add_argument_reg(b, ti);
+    mreg_t tmp = cdg.mba->alloc_kreg(4);
+    if (tmp == mr_none) return MERR_INSN;
+    icall.set_return_reg_basic(tmp, BT_INT32);
+    icall.emit();
+    return MERR_OK;
+}
+
+// vpmovb2m/w2m/d2m/q2m: extract sign bits of each element into an opmask.
+merror_t handle_v_movx2m(codegen_t &cdg) {
+    int elem = 4;
+    int ebits = 32;
+    switch (cdg.insn.itype) {
+        case NN_vpmovb2m: elem = 1; ebits = 8;  break;
+        case NN_vpmovw2m: elem = 2; ebits = 16; break;
+        case NN_vpmovd2m: elem = 4; ebits = 32; break;
+        case NN_vpmovq2m: elem = 8; ebits = 64; break;
+        default: return MERR_INSN;
+    }
+    int size = get_vector_size(cdg.insn.Op2);
+    int num_elements = size / elem;
+
+    qstring nm;
+    nm.cat_sprnt("_mm%s_movepi%d_mask", get_size_prefix(size), ebits);
+    AVXIntrinsic icall(&cdg, nm.c_str());
+    tinfo_t ti = get_type_robust(size, true, false);
+    if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, ti)) return MERR_INSN;
+    return finish_mask_result(cdg, icall, num_elements);
+}
+
+// AVX-512ER (Knights): vexp2{ps,pd}, vrcp28{ps,pd,ss,sd}, vrsqrt28{ps,pd,ss,sd}.
+merror_t handle_v_er(codegen_t &cdg) {
+    const char *op = nullptr, *suf = nullptr;
+    bool scalar = false, is_double = false;
+    switch (cdg.insn.itype) {
+        case NN_vexp2ps:    op = "exp2a23"; suf = "ps"; break;
+        case NN_vexp2pd:    op = "exp2a23"; suf = "pd"; is_double = true; break;
+        case NN_vrcp28ps:   op = "rcp28";   suf = "ps"; break;
+        case NN_vrcp28pd:   op = "rcp28";   suf = "pd"; is_double = true; break;
+        case NN_vrsqrt28ps: op = "rsqrt28"; suf = "ps"; break;
+        case NN_vrsqrt28pd: op = "rsqrt28"; suf = "pd"; is_double = true; break;
+        case NN_vrcp28ss:   op = "rcp28";   suf = "ss"; scalar = true; break;
+        case NN_vrcp28sd:   op = "rcp28";   suf = "sd"; scalar = true; is_double = true; break;
+        case NN_vrsqrt28ss: op = "rsqrt28"; suf = "ss"; scalar = true; break;
+        case NN_vrsqrt28sd: op = "rsqrt28"; suf = "sd"; scalar = true; is_double = true; break;
+        default: return MERR_INSN;
+    }
+    int size = scalar ? XMM_SIZE : get_vector_size(cdg.insn.Op1);
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, is_double ? 8 : 4);
+    if (mask.has_mask) load_mask_operand(cdg, mask);
+
+    qstring base;
+    base.cat_sprnt("_mm%s_%s_%s", scalar ? "" : get_size_prefix(size), op, suf);
+    qstring iname = mask.has_mask ? make_masked_intrinsic_name(base.c_str(), mask) : base;
+    AVXIntrinsic icall(&cdg, iname.c_str());
+    tinfo_t vt = get_type_robust(size, false, is_double);
+
+    if (mask.has_mask) {
+        if (!mask.is_zeroing) {
+            if (is_zmm_reg(cdg.insn.Op1)) { if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op1, vt)) return MERR_INSN; }
+            else icall.add_argument_reg(reg2mreg(cdg.insn.Op1.reg), vt);
+        }
+        icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    }
+    // scalar form takes (a, b); packed takes (a)
+    if (scalar) {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op2.reg), vt);
+        if (!add_vec_source(cdg, icall, 2, cdg.insn.Op3, vt)) return MERR_INSN;
+    } else {
+        if (!add_vec_source(cdg, icall, 1, cdg.insn.Op2, vt)) return MERR_INSN;
+    }
+
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt)) return MERR_INSN;
+    } else {
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(d, vt);
+        icall.emit();
+        if (size == XMM_SIZE) clear_upper(cdg, d);
+    }
+    return MERR_OK;
+}
+
+// Bits in a mask-op given its suffix letter (b/w/d/q).
+static int kop_bits(uint16 it) {
+    switch (it) {
+        case NN_kaddb: case NN_kandb: case NN_kandnb: case NN_korb: case NN_kxorb:
+        case NN_kxnorb: case NN_knotb: case NN_kshiftlb: case NN_kshiftrb:
+        case NN_kmovb: return 8;
+        case NN_kaddd: case NN_kandd: case NN_kandnd: case NN_kord: case NN_kxord:
+        case NN_kxnord: case NN_knotd: case NN_kshiftld: case NN_kshiftrd:
+        case NN_kmovd: return 32;
+        case NN_kaddq: case NN_kandq: case NN_kandnq: case NN_korq: case NN_kxorq:
+        case NN_kxnorq: case NN_knotq: case NN_kshiftlq: case NN_kshiftrq:
+        case NN_kmovq: return 64;
+        default: return 16;  // w
+    }
+}
+
+// k-register ALU: kadd/kand/kandn/kor/kxor/kxnor (2 src), knot (1 src),
+// kshiftl/kshiftr (1 src + imm), kunpck{bw,wd,dq} (2 src, widening).
+merror_t handle_k_alu(codegen_t &cdg) {
+    uint16 it = cdg.insn.itype;
+    const char *op = nullptr;
+    int nsrc = 2;
+    bool has_imm = false, is_unpck = false;
+    char unpck_c = 0;
+    switch (it) {
+        case NN_kaddb: case NN_kaddw: case NN_kaddd: case NN_kaddq: op = "kadd"; break;
+        case NN_kandb: case NN_kandw: case NN_kandd: case NN_kandq: op = "kand"; break;
+        case NN_kandnb: case NN_kandnw: case NN_kandnd: case NN_kandnq: op = "kandn"; break;
+        case NN_korb: case NN_korw: case NN_kord: case NN_korq: op = "kor"; break;
+        case NN_kxorb: case NN_kxorw: case NN_kxord: case NN_kxorq: op = "kxor"; break;
+        case NN_kxnorb: case NN_kxnorw: case NN_kxnord: case NN_kxnorq: op = "kxnor"; break;
+        case NN_knotb: case NN_knotw: case NN_knotd: case NN_knotq: op = "knot"; nsrc = 1; break;
+        case NN_kshiftlb: case NN_kshiftlw: case NN_kshiftld: case NN_kshiftlq:
+            op = "kshiftli"; nsrc = 1; has_imm = true; break;
+        case NN_kshiftrb: case NN_kshiftrw: case NN_kshiftrd: case NN_kshiftrq:
+            op = "kshiftri"; nsrc = 1; has_imm = true; break;
+        case NN_kunpckbw: is_unpck = true; unpck_c = 'b'; break;
+        case NN_kunpckwd: is_unpck = true; unpck_c = 'w'; break;
+        case NN_kunpckdq: is_unpck = true; unpck_c = 'd'; break;
+        default: return MERR_INSN;
+    }
+
+    int bits = is_unpck ? (unpck_c == 'b' ? 16 : unpck_c == 'w' ? 32 : 64) : kop_bits(it);
+    tinfo_t mt = kmask_type_for(bits);
+
+    qstring nm;
+    if (is_unpck) nm.cat_sprnt("_mm512_kunpack%c", unpck_c);
+    else          nm.cat_sprnt("_%s_mask%d", op, bits);
+    AVXIntrinsic icall(&cdg, nm.c_str());
+
+    if (!add_kmask_read_arg(cdg, icall, cdg.insn.Op2, mt)) return MERR_INSN;
+    if (nsrc == 2) {
+        if (!add_kmask_read_arg(cdg, icall, cdg.insn.Op3, mt)) return MERR_INSN;
+    } else if (has_imm && cdg.insn.Op3.type == o_imm) {
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT32);
+    }
+
+    mreg_t tmp = cdg.mba->alloc_kreg((int) mt.get_size());
+    if (tmp == mr_none) return MERR_INSN;
+    icall.set_return_reg(tmp, mt);
+    if (icall.emit() == nullptr) return MERR_INSN;
+    if (!emit_kmask_write_call(cdg, cdg.insn.Op1, tmp, mt)) return MERR_INSN;
+    return MERR_OK;
+}
+
+// kmov: move between opmask, GPR and memory.
+merror_t handle_kmov(codegen_t &cdg) {
+    int bits = kop_bits(cdg.insn.itype);
+    tinfo_t mt = kmask_type_for(bits);
+    int bytes = (int) mt.get_size();
+    const op_t &dst = cdg.insn.Op1;
+    const op_t &src = cdg.insn.Op2;
+
+    // Materialize the source value into `val`.
+    mreg_t val = mr_none;
+    if (is_mask_reg(src)) {
+        val = cdg.mba->alloc_kreg(bytes);
+        if (val == mr_none) return MERR_INSN;
+        AVXIntrinsic rd(&cdg, "__readmask");
+        rd.add_argument_imm((uint64) get_kreg_index(src), BT_INT32);
+        rd.set_return_reg(val, mt);
+        if (rd.emit() == nullptr) return MERR_INSN;
+    } else if (is_mem_op(src)) {
+        AvxOpLoader s(cdg, 1, src);
+        val = s.reg;
+    } else {  // GPR source
+        val = reg2mreg(src.reg);
+    }
+    if (val == mr_none) return MERR_INSN;
+
+    if (is_mask_reg(dst)) {
+        return emit_kmask_write_call(cdg, dst, val, mt) ? MERR_OK : MERR_INSN;
+    } else if (is_mem_op(dst)) {
+        return store_operand_hack(cdg, 0, mop_t(val, bytes)) ? MERR_OK : MERR_INSN;
+    } else {  // GPR destination
+        mreg_t d = reg2mreg(dst.reg);
+        if (d == mr_none) return MERR_INSN;
+        cdg.emit(m_mov, bytes, val, 0, d, 0);
+        return MERR_OK;
+    }
+}
+
+// vblendmps/pd, vpblendmb/w/d/q: opmask-controlled blend (dst = k ? b : a).
+// Lowers to _mm*_mask_blend_<suffix>(k, a, b).
+merror_t handle_v_blendm(codegen_t &cdg) {
+    int size = get_vector_size(cdg.insn.Op1);
+    const char *suffix = nullptr;
+    bool is_int = false, is_double = false;
+    int elem_size = 4;
+    switch (cdg.insn.itype) {
+        case NN_vblendmps: suffix = "ps";    elem_size = 4; break;
+        case NN_vblendmpd: suffix = "pd";    is_double = true; elem_size = 8; break;
+        case NN_vpblendmb: suffix = "epi8";  is_int = true; elem_size = 1; break;
+        case NN_vpblendmw: suffix = "epi16"; is_int = true; elem_size = 2; break;
+        case NN_vpblendmd: suffix = "epi32"; is_int = true; elem_size = 4; break;
+        case NN_vpblendmq: suffix = "epi64"; is_int = true; elem_size = 8; break;
+        default: return MERR_INSN;
+    }
+
+    MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
+    if (!mask.has_mask) return MERR_INSN;  // opmask is the blend control
+    load_mask_operand(cdg, mask);
+
+    tinfo_t vt = get_type_robust(size, is_int, is_double);
+    qstring nm;
+    nm.cat_sprnt("_mm%s_mask_blend_%s", get_size_prefix(size), suffix);
+    AVXIntrinsic icall(&cdg, nm.c_str());
+
+    icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+    // a (Op2)
+    if (is_zmm_reg(cdg.insn.Op2)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, vt)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op2.reg), vt);
+    }
+    // b (Op3, may be memory)
+    if (is_mem_op(cdg.insn.Op3)) {
+        AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        icall.add_argument_reg(b, vt);
+    } else if (is_zmm_reg(cdg.insn.Op3)) {
+        if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op3, vt)) return MERR_INSN;
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op3.reg), vt);
+    }
+
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt)) return MERR_INSN;
+    } else {
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(d, vt);
+        icall.emit();
+        if (size == XMM_SIZE) clear_upper(cdg, d);
+    }
+    return MERR_OK;
+}
+
+// vpbroadcastmb2q / vpbroadcastmw2d: broadcast an opmask register into a vector.
+merror_t handle_v_broadcastm(codegen_t &cdg) {
+    int size = get_vector_size(cdg.insn.Op1);
+    bool isq = (cdg.insn.itype == NN_vpbroadcastmb2q);
+    int mask_elems = isq ? 8 : 16;  // __mmask8 vs __mmask16
+
+    if (cdg.insn.Op2.type != o_kreg && cdg.insn.Op2.type != o_reg) return MERR_INSN;
+    int kreg_num = cdg.insn.Op2.reg - R_k0;
+    mreg_t mask_reg = (mreg_t)(-(kreg_num + 1));
+
+    qstring nm;
+    nm.cat_sprnt("_mm%s_broadcastm%s_%s", get_size_prefix(size),
+                 isq ? "b" : "w", isq ? "epi64" : "epi32");
+    AVXIntrinsic icall(&cdg, nm.c_str());
+    tinfo_t vt = get_type_robust(size, true, false);
+    icall.add_argument_mask(mask_reg, mask_elems);
+
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt)) return MERR_INSN;
+    } else {
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(d, vt);
+        icall.emit();
+        if (size == XMM_SIZE) clear_upper(cdg, d);
+    }
+    return MERR_OK;
+}
+
+// vbroadcastf32x2 / vbroadcasti32x2: broadcast the low 64-bit (two 32-bit) element.
+merror_t handle_v_broadcast_x2(codegen_t &cdg) {
+    int size = get_vector_size(cdg.insn.Op1);
+    bool isf = (cdg.insn.itype == NN_vbroadcastf32x2);
+    AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+
+    qstring nm;
+    nm.cat_sprnt("_mm%s_broadcast_%s", get_size_prefix(size), isf ? "f32x2" : "i32x2");
+    AVXIntrinsic icall(&cdg, nm.c_str());
+    tinfo_t src_vt = get_type_robust(XMM_SIZE, !isf, false);
+    tinfo_t vt = get_type_robust(size, !isf, false);
+    icall.add_argument_reg(src, src_vt);
+
+    if (is_zmm_reg(cdg.insn.Op1)) {
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, vt);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, vt)) return MERR_INSN;
+    } else {
+        mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+        icall.set_return_reg(d, vt);
+        icall.emit();
+        if (size == XMM_SIZE) clear_upper(cdg, d);
+    }
     return MERR_OK;
 }
 
