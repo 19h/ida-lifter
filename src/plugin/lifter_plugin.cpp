@@ -81,40 +81,59 @@ static ssize_t idaapi hexrays_callback(void *, hexrays_event_t event, va_list va
 }
 
 //--------------------------------------------------------------------------
-// Plugin Initialization
+// Plugin Initialization (PLUGIN_MULTI model)
+//
+// We must use PLUGIN_MULTI rather than the legacy PLUGIN_FIX/init()-returns-
+// PLUGIN_KEEP style. PLUGIN_FIX plugins are initialized by init_plugins() very
+// early during kernel startup (in idalib this happens inside init_library(),
+// before any database is opened and before the decompiler is initialized).
+// At that point init_hexrays_plugin() fails and the plugin would bail out,
+// leaving the microcode filters uninstalled (everything falls back to __asm).
+//
+// PLUGIN_MULTI plugmods are instantiated per-database, after the decompiler is
+// available, so init_hexrays_plugin() succeeds and the filters install. This
+// mirrors the shipped 'deobf' plugin.
 //--------------------------------------------------------------------------
 
-static plugmod_t * idaapi init(void) {
-    if (!init_hexrays_plugin()) {
-        msg("[lifter] Plugin requires Hex-Rays decompiler\n");
-        return PLUGIN_SKIP;
+struct lifter_plugmod_t : public plugmod_t {
+    bool hexrays_ready = false;
+
+    lifter_plugmod_t() {
+        if (!init_hexrays_plugin()) {
+            // No decompiler for this database: stay inert. The plugmod is kept
+            // around but installs nothing.
+            return;
+        }
+        hexrays_ready = true;
+
+        // Install hexrays callback for popup menus / warning suppression
+        install_hexrays_callback(hexrays_callback, this);
+
+        int initialized = component_registry_t::init_all();
+        msg("[lifter] Plugin ready (%d/%d components initialized)\n",
+            initialized, (int) component_registry_t::get_count());
     }
 
-    msg("[lifter] Plugin initializing (%d components registered)\n", (int) component_registry_t::get_count());
+    virtual ~lifter_plugmod_t() {
+        if (!hexrays_ready)
+            return;
 
-    // Install hexrays callback for popup menus
-    install_hexrays_callback(hexrays_callback, nullptr);
+        // Remove hexrays callback
+        remove_hexrays_callback(hexrays_callback, this);
 
-    int initialized = component_registry_t::init_all();
-    msg("[lifter] Plugin ready (%d components initialized)\n", initialized);
-    return PLUGIN_KEEP;
-}
+        // Unregister all component actions
+        component_registry_t::unregister_all_actions();
 
-static void idaapi term(void) {
-    msg("[lifter] Plugin terminating\n");
+        component_registry_t::done_all();
+    }
 
-    // Remove hexrays callback
-    remove_hexrays_callback(hexrays_callback, nullptr);
+    virtual bool idaapi run(size_t) override {
+        return false;
+    }
+};
 
-    // Unregister all component actions
-    component_registry_t::unregister_all_actions();
-
-    int terminated = component_registry_t::done_all();
-    msg("[lifter] Plugin done (%d components terminated)\n", terminated);
-}
-
-static bool idaapi run(size_t) {
-    return false;
+static plugmod_t * idaapi init(void) {
+    return new lifter_plugmod_t;
 }
 
 //--------------------------------------------------------------------------
@@ -124,10 +143,10 @@ static bool idaapi run(size_t) {
 plugin_t PLUGIN =
 {
     IDP_INTERFACE_VERSION,
-    PLUGIN_FIX, // plugin flags
-    init, // initialize
-    term, // terminate
-    run, // invoke plugin procedure
+    PLUGIN_MULTI, // plugin flags: modern per-database plugmod model
+    init, // initialize -> returns plugmod_t*
+    nullptr, // term must be nullptr for PLUGIN_MULTI
+    nullptr, // run must be nullptr for PLUGIN_MULTI (use plugmod_t::run)
     "AVX Lifter Plugin", // long comment about the plugin
     "Lifts AVX instructions for Hex-Rays Decompiler", // help text
     "AVX Lifter", // preferred short name

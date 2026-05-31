@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -48,7 +49,7 @@ def _idump_scan(idump, sofile, outfile, keep, interesting_only=True):
     return ok, rate, interrs, asms
 
 
-def run_seed(seed, funcs, flags, idump, keep):
+def run_seed(seed, funcs, flags, idump, keep, cc):
     base = HERE / f"_t{seed}"
     ok_total, rate_min, interrs, asms = 0, 100.0, [], Counter()
     # --- intrinsic corpus (C) ---
@@ -56,10 +57,10 @@ def run_seed(seed, funcs, flags, idump, keep):
     gen = sh(f"python3 {HERE}/gen_torture.py --funcs {funcs} --seed {seed} --out {cfile}")
     if gen.returncode != 0:
         return {"seed": seed, "stage": "gen-c", "err": gen.stderr.strip()}
-    cc = sh(f"gcc -O1 -fPIC -shared {flags} {cfile} -o {cso}")
-    if cc.returncode != 0:
+    res = sh(f"{cc} -arch x86_64 -O1 -fPIC -shared {flags} {cfile} -o {cso}")
+    if res.returncode != 0:
         return {"seed": seed, "stage": "compile-c",
-                "err": "\n".join(l for l in cc.stderr.splitlines() if "error:" in l)[:2000]}
+                "err": "\n".join(l for l in res.stderr.splitlines() if "error:" in l)[:2000]}
     o, r, ie, am = _idump_scan(idump, cso, cout, keep)
     ok_total += max(o, 0); rate_min = min(rate_min, r); interrs += [("c", x) for x in ie]; asms += am
     if not keep:
@@ -70,10 +71,10 @@ def run_seed(seed, funcs, flags, idump, keep):
     gen = sh(f"python3 {HERE}/gen_asm_torture.py --funcs {funcs} --seed {seed} --out {afile}")
     if gen.returncode != 0:
         return {"seed": seed, "stage": "gen-asm", "err": gen.stderr.strip()}
-    cc = sh(f"gcc -shared -fPIC {flags} {afile} -o {aso}")
-    if cc.returncode != 0:
+    res = sh(f"{cc} -arch x86_64 -shared -fPIC {flags} {afile} -o {aso}")
+    if res.returncode != 0:
         return {"seed": seed, "stage": "assemble",
-                "err": "\n".join(l for l in cc.stderr.splitlines() if "rror" in l)[:2000]}
+                "err": "\n".join(l for l in res.stderr.splitlines() if "rror" in l)[:2000]}
     o, r, ie, am = _idump_scan(idump, aso, aout, keep)
     ok_total += max(o, 0); rate_min = min(rate_min, r); interrs += [("asm", x) for x in ie]; asms += am
     if not keep:
@@ -89,6 +90,8 @@ def main():
     ap.add_argument("--seed", type=int, default=None, help="single seed")
     ap.add_argument("--funcs", type=int, default=400)
     ap.add_argument("--idump", default="idump")
+    ap.add_argument("--cc", default=os.environ.get("CC", "clang"),
+                    help="C compiler (default: $CC or clang)")
     ap.add_argument("--keep", action="store_true")
     args = ap.parse_args()
 
@@ -101,7 +104,7 @@ def main():
     all_asm = Counter()
     bad = []
     for s in seeds:
-        r = run_seed(s, args.funcs, flags, args.idump, args.keep)
+        r = run_seed(s, args.funcs, flags, args.idump, args.keep, args.cc)
         if r["stage"] != "ok":
             print(f"[seed {s}] {r['stage']} FAILED:\n{r['err']}")
             bad.append(s)
