@@ -27,6 +27,14 @@ matrix:
 seed:
 	@python3 run_torture.py --seed $(SEED) --funcs $(FUNCS) --idump $(IDUMP) --keep
 
+# COVERAGE-CLOSURE gate: every itype the lifter dispatches must be exercised
+# with a memory-source operand by the corpus, or be allowlisted in
+# allowlist_nomem.txt with a reason. Fails (non-zero) on any uncovered family,
+# so a supported instruction can never sit silently untested again.
+.PHONY: coverage
+coverage:
+	@python3 coverage_closure.py --seeds $(SEEDS) --funcs $(FUNCS) --idump $(IDUMP)
+
 .PHONY: clean
 clean:
 	@rm -f _* *.o tg.* at.* matrix_run*.log 2>/dev/null; echo cleaned

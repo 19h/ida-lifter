@@ -1,0 +1,237 @@
+# Supported itypes with NO memory-SOURCE encoding form (so requiring a memory
+# operand in the corpus would be impossible). One mnemonic per line; text after
+# '#' is the justification. Keep this list small and justified -- everything
+# NOT here must be exercised with a memory operand by the corpus.
+
+# --- imm-encoded conditional variants of vcmp{ps,pd,ss,sd,ph,sh}; the
+# the compare family's handler IS exercised with a memory source (e.g.
+# vcmpeqps xmm,[mem]); these share that identical lifted code path (imm differs).
+vcmpeq_ospd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_osps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_ossd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_osss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_uqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_uqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_uqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_uqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_uspd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_usps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_ussd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeq_usss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpeqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalse_ospd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalse_osps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalse_ossd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalse_osss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalsepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalseps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalsesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpfalsess  # vcmp imm-variant; base vcmp* covered with mem
+vcmpge_oqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpge_oqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpge_oqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgeps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgess  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgt_oqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgt_oqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgt_oqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgt_oqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgtpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgtps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgtsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpgtss  # vcmp imm-variant; base vcmp* covered with mem
+vcmple_oqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmple_oqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmple_oqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmple_oqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmplepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpleps  # vcmp imm-variant; base vcmp* covered with mem
+vcmplesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpless  # vcmp imm-variant; base vcmp* covered with mem
+vcmplt_oqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmplt_oqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmplt_oqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpltpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpltps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpltsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpltss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_oqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_oqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_oqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_oqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_ospd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_osps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_ossd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_osss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_uspd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_usps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_ussd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneq_usss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpneqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnge_uqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnge_uqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnge_uqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnge_uqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngeps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngess  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngt_uqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngt_uqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngt_uqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngt_uqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngtpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngtps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngtsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpngtss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnle_uqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnle_uqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnle_uqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnle_uqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnleps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnless  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlt_uqpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlt_uqps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlt_uqsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnlt_uqss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnltpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnltps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnltsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpnltss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpord_spd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpord_sps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpord_ssd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpord_sss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpordpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpordps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpordsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpordss  # vcmp imm-variant; base vcmp* covered with mem
+vcmptrue_uspd  # vcmp imm-variant; base vcmp* covered with mem
+vcmptrue_usps  # vcmp imm-variant; base vcmp* covered with mem
+vcmptrue_ussd  # vcmp imm-variant; base vcmp* covered with mem
+vcmptrue_usss  # vcmp imm-variant; base vcmp* covered with mem
+vcmptruepd  # vcmp imm-variant; base vcmp* covered with mem
+vcmptrueps  # vcmp imm-variant; base vcmp* covered with mem
+vcmptruesd  # vcmp imm-variant; base vcmp* covered with mem
+vcmptruess  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunord_spd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunord_sps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunord_ssd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunord_sss  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunordpd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunordps  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunordsd  # vcmp imm-variant; base vcmp* covered with mem
+vcmpunordss  # vcmp imm-variant; base vcmp* covered with mem
+
+# --- classified no-memory-source / special forms (auto-triaged) ---
+clflushopt  # single m8 operand is a cache-line address (flush hint), not a reg-or-mem value source fold
+clwb  # single m8 operand is a cache-line address (writeback hint), not a reg-or-mem value source 
+kunpckbw  # Operates between k-registers only; no memory operand.
+kunpckdq  # operands are k-registers only (kunpckdq %k,%k,%k); memory form is rejected by the assemble
+kunpckwd  # Operates between k-registers only; no memory operand.
+vcompresspd  # compress: memory operand is the destination store (vcompresspd %xmm,(%mem){k}); source is 
+vcompressps  # Source is a register; the only memory operand is the destination store.
+vcvtps2ph  # Source is a register; the only memory operand is the destination store.
+vextractf128  # Extracts a 128-bit lane; memory operand is a DESTINATION store, source is a ymm register.
+vextractf32x4  # Source is a register + imm; the only memory operand is the destination store.
+vextractf32x8  # Extracts a 256-bit lane; memory operand is a DESTINATION store, source is a zmm register.
+vextractf64x2  # Extracts a 128-bit lane; memory operand is a DESTINATION store, source is a ymm/zmm regist
+vextractf64x4  # Source is a register + imm; the only memory operand is the destination store.
+vextracti128  # Extracts a 128-bit lane; memory operand is a DESTINATION store, source is a ymm register.
+vextracti32x4  # Extracts a 128-bit lane; memory operand is a DESTINATION store, source is a ymm/zmm regist
+vextracti32x8  # Extracts a 256-bit lane; memory operand is a DESTINATION store, source is a zmm register.
+vextracti64x2  # Extracts a 128-bit lane; memory operand is a DESTINATION store, source is a ymm/zmm regist
+vextracti64x4  # Extracts a 256-bit lane from a zmm register source; its only memory operand is the destina
+vextractps  # Source is an xmm register; the memory operand is the m32 destination store, not a source.
+vgatherpf0dpd  # VSIB gather-prefetch: memory addressed via index vector + {k} mask, no plain (%rdi) source
+vgatherpf0dps  # VSIB gather-prefetch: memory addressed via index vector + {k} mask, no plain (%rdi) source
+vgatherpf0qpd  # VSIB gather-prefetch: memory addressed via index vector + {k} mask, no plain (%rdi) source
+vgatherpf0qps  # VSIB gather-prefetch: memory addressed via index vector + {k} mask, no plain (%rdi) source
+vmovhlps  # reg-only: 3 xmm operands, no memory form (operand type mismatch for memory source)
+vmovlhps  # reg-only: 3 xmm operands, no memory form (operand type mismatch for memory source)
+vmovmskpd  # reg<-reg: extracts sign-bit mask from xmm into gpr, no memory source
+vmovmskps  # reg<-reg: extracts sign-bit mask from xmm into gpr, no memory source
+vmovntdq  # streaming STORE only (reg->mem); load form fails to assemble
+vmovntpd  # streaming STORE only (reg->mem); load form fails to assemble
+vmovntps  # streaming STORE only (reg->mem); load form fails to assemble
+vp2intersectd  # EVEX-only: destination is a k-register mask PAIR (k+k+1), not a simple memfold dst
+vp2intersectq  # EVEX-only: destination is a k-register mask PAIR (k+k+1), not a simple memfold dst
+vp4dpwssd  # AVX512_4VNNIW: source is a block of 4 consecutive zmm regs plus m128, not a simple fold
+vp4dpwssds  # AVX512_4VNNIW: source is a block of 4 consecutive zmm regs plus m128, not a simple fold
+vpbroadcastmb2q  # source operand is a k-register (mask->vector broadcast); no memory source
+vpbroadcastmw2d  # source operand is a k-register (mask->vector broadcast); no memory source
+vpcompressb  # Compress writes reg-or-mem destination from a register source; its only memory operand is 
+vpcompressd  # only memory form is a DESTINATION store (vector source compressed to m); no memory source
+vpcompressq  # Compress writes reg-or-mem destination from a register source; its only memory operand is 
+vpcompressw  # Compress writes reg-or-mem destination from a register source; its only memory operand is 
+vpextrb  # extract: source is an xmm register, the optional memory operand is the destination store
+vpextrd  # extract: source is an xmm register, the optional memory operand is the destination store
+vpextrq  # extract: source is an xmm register, the optional memory operand is the destination store
+vpextrw  # extract: source is an xmm register (reg<-reg or m-dest); the memory operand is the destina
+vpgatherqd  # VSIB gather: memory source needs an index vector plus a mask register, not a simple (%rdi)
+vpmovb2m  # source is a vector register, dest is a k-register; no memory operand
+vpmovd2m  # source is a vector register, dest is a k-register; no memory operand
+vpmovdb  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpmovdw  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpmovm2b  # source is a k-register (mask->vector); no memory operand
+vpmovm2d  # Source is a k-register (k->vector broadcast); no memory-source form.
+vpmovm2q  # source is a k-register (mask->vector); no memory operand
+vpmovm2w  # source is a k-register (mask->vector); no memory operand
+vpmovmskb  # reg<-reg only; moves byte mask from xmm to GPR, no memory operand
+vpmovq2m  # vector->mask; dest is k-register, source is a vector register, no memory operand
+vpmovqb  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpmovqd  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpmovqw  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpmovsdb  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovsdw  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovsqb  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovsqd  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovsqw  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovswb  # down-convert saturate; memory operand is the DESTINATION store, source is a register
+vpmovusdb  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovusdw  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovusqb  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovusqd  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovusqw  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovuswb  # down-convert unsigned saturate; memory operand is the DESTINATION store, source is a regis
+vpmovw2m  # vector->mask; dest is k-register, source is a vector register, no memory operand
+vpmovwb  # down-convert truncate; memory operand is the DESTINATION store, source is a register
+vpscatterdd  # VSIB scatter: memory is the destination, indexed by a vector + opmask; gen_memfold cannot 
+vpscatterdq  # VSIB scatter: memory operand is a destination indexed by a vector + required mask; not a s
+vpscatterqd  # VSIB scatter: memory operand is a destination indexed by a vector + required mask; not a s
+vpscatterqq  # VSIB scatter: memory operand is a destination indexed by a vector + required mask; not a s
+vscatterdpd  # VSIB scatter: memory is the destination, indexed by a vector + opmask; gen_memfold cannot 
+vscatterdps  # VSIB scatter: memory is the destination, indexed by a vector + opmask; gen_memfold cannot 
+vscatterpf0dpd  # VSIB scatter-prefetch; needs index vector + {k} mask, no simple (%rdi) fold
+vscatterpf0dps  # VSIB scatter-prefetch; needs index vector + {k} mask, no simple (%rdi) fold
+vscatterpf0qpd  # VSIB scatter-prefetch; needs index vector + {k} mask, no simple (%rdi) fold
+vscatterpf0qps  # VSIB scatter-prefetch; needs index vector + {k} mask, no simple (%rdi) fold
+vscatterqpd  # VSIB scatter: memory is the destination, indexed by a vector + opmask; gen_memfold cannot 
+vscatterqps  # VSIB scatter; memory is the destination store and needs an index vector + {k} mask
+vstmxcsr  # Writes m32 (MXCSR store); its only memory operand is a destination
+vzeroall  # No operands; clears all YMM/ZMM regs, touches no memory.
+vzeroupper  # No operands; touches no memory.
+
+# --- compare base itypes that the assembler never emits: a predicate imm always
+# decodes to a vcmp<cond>/vpcmp<cond> pseudo-itype. The compare family's lifter
+# handler IS exercised with a memory source via those decoded variants
+# (e.g. vcmpps $0 -> vcmpeqps xmm,[mem]; vpcmpd $5 -> vpcmpnltd k,xmm,[mem]).
+vcmppd  # unreachable base; decodes to vcmp<cond>pd pseudo, family covered w/ mem
+vcmpps  # unreachable base; decodes to vcmp<cond>ps pseudo, family covered w/ mem
+vcmpsd  # unreachable base; decodes to vcmp<cond>sd pseudo, family covered w/ mem
+vcmpss  # unreachable base; decodes to vcmp<cond>ss pseudo, family covered w/ mem
+vpcmpd  # unreachable base; decodes to vpcmp<cond>d pseudo, family covered w/ mem
+vpcmpq  # unreachable base; decodes to vpcmp<cond>q pseudo, family covered w/ mem
+vpcmpud # unreachable base; decodes to vpcmp<cond>ud pseudo, family covered w/ mem
+vpcmpuq # unreachable base; decodes to vpcmp<cond>uq pseudo, family covered w/ mem
+vldmxcsr # loads MXCSR control word (m32); control-reg op, sole mem operand is Op1, no vector data path

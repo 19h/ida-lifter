@@ -1392,7 +1392,6 @@ merror_t handle_v_pclmul(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t a = reg2mreg(cdg.insn.Op2.reg);
-    AvxOpLoader b(cdg, 2, cdg.insn.Op3);
 
     QASSERT(0xA0A31, cdg.insn.Op4.type == o_imm);
     uint64 imm = cdg.insn.Op4.value;
@@ -1408,7 +1407,19 @@ merror_t handle_v_pclmul(codegen_t &cdg) {
     tinfo_t ti = get_type_robust(size, true, false);
 
     icall.add_argument_reg(a, ti);
-    icall.add_argument_reg(b, ti);
+    // Op3 is reg-or-memory. IDA can under-report the memory operand width for the
+    // 256/512-bit VPCLMULQDQ forms (e.g. xmmword for a ymm op), so a plain
+    // AvxOpLoader would load fewer bytes than the call argument then reads,
+    // referencing undefined temp bytes -> INTERR 50920. Load the memory source at
+    // the operation width via make_vector_load_mop instead.
+    if (is_mem_op(cdg.insn.Op3)) {
+        mop_t bmop;
+        if (!make_vector_load_mop(cdg, 2, bmop, ti, size, /*is_int=*/true, /*is_double=*/false))
+            return MERR_INSN;
+        icall.add_argument_mop(bmop, ti);
+    } else {
+        icall.add_argument_reg(reg2mreg(cdg.insn.Op3.reg), ti);
+    }
     icall.add_argument_imm(imm, BT_INT8);
     icall.set_return_reg(d, ti);
     icall.emit();
@@ -2965,14 +2976,24 @@ merror_t handle_vpinsert(codegen_t &cdg) {
     QASSERT(0xA0A10, cdg.insn.Op4.type == o_imm);
     uint64 imm = cdg.insn.Op4.value;
 
+    // The inserted value is exactly elem_size bytes. For a memory operand we
+    // load precisely that many bytes, so the call argument must be that size
+    // too: reading it as a wider INT32 references bytes the load never defined,
+    // leaving an undefined temp sub-range the verifier rejects as a cross-block
+    // temporary (INTERR 50920). GPR sources (vpinsrb/w take r32) hold >=4 bytes,
+    // so keep their argument at >=32 bits to match the old, working behavior.
+    int val_size = elem_size;
     mreg_t val;
-    mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader val_in(cdg, 2, cdg.insn.Op3);
         val = val_in.reg;
     } else {
         val = reg2mreg(cdg.insn.Op3.reg);
+        if (val_size < 4) val_size = 4;
     }
+    type_t val_bt = val_size >= 8 ? BT_INT64
+                  : val_size == 4 ? BT_INT32
+                  : val_size == 2 ? BT_INT16 : BT_INT8;
 
     qstring iname;
     iname.cat_sprnt("_mm_insert_%s", suffix);
@@ -2981,7 +3002,7 @@ merror_t handle_vpinsert(codegen_t &cdg) {
     tinfo_t ti = get_type_robust(size, true, false);
 
     icall.add_argument_reg(s, ti);
-    icall.add_argument_reg(val, elem_size == 8 ? BT_INT64 : BT_INT32);
+    icall.add_argument_reg(val, val_bt);
     icall.add_argument_imm(imm, BT_INT32);
     icall.set_return_reg(d, ti);
     icall.emit();
@@ -3337,7 +3358,11 @@ static bool add_vec_source(codegen_t &cdg, AVXIntrinsic &icall, int opidx,
     if (is_mem_op(op)) {
         AvxOpLoader ld(cdg, opidx, op);
         if (ld.reg == mr_none) return false;
-        icall.add_argument_reg(ld.reg, ti);
+        // A sub-width memory load (e.g. a scalar m16/m32/m64 read at XMM width)
+        // must be zero-extended before being read at ti width, else the call
+        // argument references undefined upper bytes -> INTERR 50920.
+        mreg_t v = widen_loaded_value(cdg, ld.reg, ld.size, (int) ti.get_size());
+        icall.add_argument_reg(v, ti);
         return true;
     }
     if (is_zmm_reg(op)) return add_zmm_read_arg(cdg, icall, op, ti);
@@ -3581,7 +3606,9 @@ merror_t handle_v_comish(codegen_t &cdg) {
     tinfo_t ti = get_type_robust(XMM_SIZE, false, false);
     AVXIntrinsic icall(&cdg, nm);
     icall.add_argument_reg(a, ti);
-    icall.add_argument_reg(b, ti);
+    // Op2 may be a scalar m16 memory load; widen it to XMM width so the call
+    // argument does not read undefined upper bytes of the load (INTERR 50920).
+    icall.add_argument_reg(widen_loaded_value(cdg, b.reg, b.size, (int) ti.get_size()), ti);
     mreg_t tmp = cdg.mba->alloc_kreg(4);
     if (tmp == mr_none) return MERR_INSN;
     icall.set_return_reg_basic(tmp, BT_INT32);
@@ -3872,7 +3899,10 @@ merror_t handle_v_broadcast_x2(codegen_t &cdg) {
     AVXIntrinsic icall(&cdg, nm.c_str());
     tinfo_t src_vt = get_type_robust(XMM_SIZE, !isf, false);
     tinfo_t vt = get_type_robust(size, !isf, false);
-    icall.add_argument_reg(src, src_vt);
+    // Op2 is xmm/m64 (2 elements); a memory load is only 8 bytes but src_vt is
+    // XMM (16). Widen so the call argument doesn't read undefined bytes of the
+    // loaded temp (INTERR 50920).
+    icall.add_argument_reg(widen_loaded_value(cdg, src.reg, src.size, XMM_SIZE), src_vt);
 
     if (is_zmm_reg(cdg.insn.Op1)) {
         mreg_t tmp = cdg.mba->alloc_kreg(size, false);

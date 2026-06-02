@@ -1,0 +1,11 @@
+# torture-suite runtime artifacts (generated corpora, built objects, coverage data)
+_*
+*.so
+*.o
+*.i64
+*.id0
+*.id1
+*.id2
+*.nam
+*.til
+matrix_run*.log

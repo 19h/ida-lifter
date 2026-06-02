@@ -630,7 +630,10 @@ merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
         AvxOpLoader s(cdg, 1, cdg.insn.Op2);
         qstring nm; nm.cat_sprnt("_mm_%s%d", e.base, gsz == 8 ? 64 : 32);
         AVXIntrinsic ic(&cdg, nm.c_str());
-        ic.add_argument_reg(s, get_type_robust(XMM_SIZE, false, e.src_double));
+        // Op2 may be a scalar m16/m32/m64 memory load; widen to XMM width so the
+        // argument does not read undefined upper bytes of the load (INTERR 50920).
+        ic.add_argument_reg(widen_loaded_value(cdg, s.reg, s.size, XMM_SIZE),
+                            get_type_robust(XMM_SIZE, false, e.src_double));
         ic.set_return_reg_basic(d, gsz == 8 ? BT_INT64 : BT_INT32);
         ic.emit();
         return MERR_OK;
@@ -675,7 +678,10 @@ merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
         AvxOpLoader b(cdg, 2, cdg.insn.Op3);
         AVXIntrinsic ic(&cdg, e.name);
         ic.add_argument_reg(a, get_type_robust(XMM_SIZE, false, e.a_double));
-        ic.add_argument_reg(b, get_type_robust(XMM_SIZE, false, e.b_double));
+        // Op3 may be a scalar m16/m32/m64 memory load; widen to XMM width so the
+        // argument does not read undefined upper bytes of the load (INTERR 50920).
+        ic.add_argument_reg(widen_loaded_value(cdg, b.reg, b.size, XMM_SIZE),
+                            get_type_robust(XMM_SIZE, false, e.b_double));
         ic.set_return_reg(d, get_type_robust(XMM_SIZE, false, false));
         ic.emit();
         clear_upper(cdg, d);

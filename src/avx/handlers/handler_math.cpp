@@ -418,13 +418,17 @@ merror_t handle_v_complex_ph(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
+    // For the scalar (sch) forms Op3 is xmm/m32; a memory load is only 4 bytes
+    // but ti is XMM (16), so widen to avoid reading undefined upper bytes of the
+    // loaded temp (INTERR 50920). No-op for packed/register sources.
+    mreg_t b_wide = widen_loaded_value(cdg, b.reg, b.size, (int) ti.get_size());
     mreg_t a = is_ternary ? reg2mreg(cdg.insn.Op1.reg) : reg2mreg(cdg.insn.Op2.reg);
-    mreg_t b_reg = is_ternary ? reg2mreg(cdg.insn.Op2.reg) : b;
+    mreg_t b_reg = is_ternary ? reg2mreg(cdg.insn.Op2.reg) : b_wide;
 
     icall.add_argument_reg(a, ti);
     icall.add_argument_reg(b_reg, ti);
     if (is_ternary) {
-        icall.add_argument_reg(b, ti);
+        icall.add_argument_reg(b_wide, ti);
     }
     icall.set_return_reg(d, ti);
     icall.emit();
@@ -2135,7 +2139,9 @@ merror_t handle_v_fp16_scalar_misc(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
     icall.add_argument_reg(a, ti);
-    icall.add_argument_reg(b, ti);
+    // Op3 may be a scalar m16 memory load; widen it to XMM width so the call
+    // argument does not read undefined upper bytes of the load (INTERR 50920).
+    icall.add_argument_reg(widen_loaded_value(cdg, b.reg, b.size, (int) ti.get_size()), ti);
     if (has_imm && cdg.insn.Op4.type == o_imm) {
         icall.add_argument_imm(cdg.insn.Op4.value, BT_INT32);
     }

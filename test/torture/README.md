@@ -16,7 +16,31 @@ make matrix                      # FULL wild-conditions matrix (see below) — t
                                  #   is what reproduces the wild INTERRs
 make matrix SEEDS=5 FUNCS=400    # crank it up
 make seed SEED=7 FUNCS=800       # one reproducible ELF64 seed; keeps _t7.* artifacts
+make coverage                    # coverage-closure gate (see below)
 ```
+
+## Coverage-closure gate (`make coverage` / `coverage_closure.py`)
+
+The matrix finds bugs only in instruction forms the corpus actually emits. An
+entire *supported* family can sit untested — that is exactly how the INTERR-50920
+memory-operand bugs (vpinsrw, vpclmulqdq, the scalar fp16/cvt family) hid: no
+generator folded memory as a reg-or-mem **source**, so those handler paths never
+ran. `coverage_closure.py` makes that impossible to repeat:
+
+- The lifter exports an authoritative manifest of every itype it dispatches
+  (`avx_match_itype_core()` + k-reg + compare-to-mask), via env `AVX_COV_MANIFEST`.
+- It records, per itype, whether the corpus ever fed it a memory **source**
+  operand (env `AVX_COV`).
+- The gate runs every generator, unions the observed coverage, and **fails** if
+  any supported itype with a memory-source form was never exercised with memory,
+  unless it is listed in `allowlist_nomem.txt` (instructions with no
+  memory-source encoding — `vzeroupper`, `vpextr*`, `vmovmskps`, k-reg ops, etc.
+  — each with a justification).
+
+Close a hole by adding corpus coverage (extend `gen_memfold.py`, which folds
+memory as a source across widths and sub-dword/scalar sizes) or by allowlisting
+it with a reason. `gen_memfold.py` reads `memfold_forms.tsv` (verified, per-itype
+folded-memory asm) so its emitted corpus always assembles.
 
 ## The wild-conditions matrix (`make matrix` / `torture_matrix.py`)
 

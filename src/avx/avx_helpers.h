@@ -81,6 +81,17 @@ bool make_vector_load_mop(codegen_t &cdg, int opidx, mop_t &out_mop, const tinfo
 // Legacy name for backwards compatibility
 bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size = ZMM_SIZE);
 
+// Ensure a freshly-loaded narrow value can be read at `want_size` bytes without
+// referencing undefined bytes. If `loaded_size` is positive and smaller than
+// `want_size` (a sub-width MEMORY load, e.g. a scalar m16/m32/m64), zero-extend
+// it via m_xdu into a fresh `want_size` kreg and return that. Otherwise (a
+// register source, where AvxOpLoader reports loaded_size==0, or an already-wide
+// load) return `loaded_reg` unchanged. This prevents reading undefined upper
+// bytes of the loaded temp, which the verifier rejects as a cross-block
+// temporary (INTERR 50920). Mirrors the scalar-load convention in
+// handle_v_math_ss_sd / handle_v_minmax_ss_sd.
+mreg_t widen_loaded_value(codegen_t &cdg, mreg_t loaded_reg, int loaded_size, int want_size);
+
 // ZMM processor registers are not supported by Hex-Rays. These helpers model
 // them with side-effecting helper calls while keeping 64-byte values in kregs.
 int get_zmm_reg_index(const op_t &op);

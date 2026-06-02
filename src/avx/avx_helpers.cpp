@@ -260,6 +260,22 @@ bool emit_zmm_store(codegen_t &cdg, int opidx, mreg_t src_mreg, int zmm_size) {
     return emit_vector_store(cdg, opidx, src_mreg, zmm_size);
 }
 
+mreg_t widen_loaded_value(codegen_t &cdg, mreg_t loaded_reg, int loaded_size, int want_size) {
+    // Nothing to do for register sources (loaded_size==0) or already-wide loads.
+    if (loaded_reg == mr_none || loaded_size <= 0 || loaded_size >= want_size)
+        return loaded_reg;
+    mreg_t wide = cdg.mba->alloc_kreg(want_size);
+    if (wide == mr_none)
+        return loaded_reg;  // fall back; caller behaviour unchanged
+    mop_t src(loaded_reg, loaded_size);
+    mop_t dst(wide, want_size);
+    if (want_size > 8)
+        dst.set_udt();
+    mop_t empty;
+    cdg.emit(m_xdu, &src, &empty, &dst);
+    return wide;
+}
+
 int get_zmm_reg_index(const op_t &op) {
     if (!is_zmm_reg(op)) return -1;
 

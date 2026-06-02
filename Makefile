@@ -1,4 +1,4 @@
-.PHONY: all build clean install test build-tests test-avx10 test-rax
+.PHONY: all build clean install test build-tests test-avx10 test-rax coverage
 
 BUILD_DIR := build
 INSTALL_DIR := $(HOME)/.idapro/plugins
@@ -53,6 +53,11 @@ endif
 
 test:
 	@$(MAKE) -C test test
+
+# Coverage-closure gate: fail if any dispatched itype is never exercised with a
+# memory-source operand (and isn't allowlisted). See test/torture/coverage_closure.py.
+coverage:
+	@$(MAKE) -C test/torture coverage
 
 build-tests:
 	@$(MAKE) -C test build

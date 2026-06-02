@@ -1,12 +1,15 @@
 #include "../common/warn_off.h"
 #include <hexrays.hpp>
 #include <intel.hpp>
+#include <idp.hpp>
 #include <bytes.hpp>
 #include <funcs.hpp>
 #include <name.hpp>
 #include <typeinf.hpp>
 #include <ua.hpp>
+#include <fpro.h>
 #include "../common/warn_on.h"
+#include <map>
 #include "../plugin/component_registry.h"
 #include "avx_types.h"
 #include "avx_intrinsic.h"
@@ -119,6 +122,139 @@ static void dump_mba_full(mba_t *mba, const char *tag) {
 }
 
 //-----------------------------------------------------------------------------
+// Supported-itype manifest (authoritative; shared with match()).
+//
+// avx_match_itype_core() is the *itype-only* portion of match()'s decision (the
+// big classification OR). match() calls it and then applies operand-specific
+// gates. Pulling it out lets the coverage-closure tooling enumerate exactly the
+// set of itypes the lifter intends to handle, with no risk of drifting from the
+// real dispatch logic.
+//-----------------------------------------------------------------------------
+static bool avx_match_itype_core(uint16 it) {
+    return is_compare_insn(it) || is_extract_insn(it) || is_conversion_insn(it) ||
+           is_move_insn(it) || is_scalar_move(it) || is_bitwise_insn(it) ||
+           is_math_insn(it) || is_scalar_math(it) || is_scalar_minmax(it) ||
+           is_broadcast_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
+           is_packed_int_compare_insn(it) ||
+           is_maskmov_insn(it) || is_misc_insn(it) ||
+           is_horizontal_math(it) || is_dot_product(it) ||
+           is_approx_insn(it) || is_scalar_approx_insn(it) ||
+           is_round_insn(it) || is_scalar_round_insn(it) ||
+           is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
+           is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
+           is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
+           is_permutex_insn(it) || is_permutex2_insn(it) || is_shuf_lane_insn(it) || is_ternary_logic_insn(it) ||
+           it == NN_vblendmps || it == NN_vblendmpd || it == NN_vpblendmb ||
+           it == NN_vpblendmw || it == NN_vpblendmd || it == NN_vpblendmq ||
+           it == NN_vpbroadcastmb2q || it == NN_vpbroadcastmw2d ||
+           it == NN_vbroadcastf32x2 || it == NN_vbroadcasti32x2 ||
+           it == NN_vexp2ps || it == NN_vexp2pd ||
+           it == NN_vrcp28ps || it == NN_vrcp28pd || it == NN_vrcp28ss || it == NN_vrcp28sd ||
+           it == NN_vrsqrt28ps || it == NN_vrsqrt28pd || it == NN_vrsqrt28ss || it == NN_vrsqrt28sd ||
+           it == NN_v4fmaddps || it == NN_v4fnmaddps || it == NN_v4fmaddss || it == NN_v4fnmaddss ||
+           it == NN_vp4dpwssd || it == NN_vp4dpwssds ||
+           it == NN_vcomish || it == NN_vucomish ||
+           it == NN_vgatherpf0dps || it == NN_vgatherpf0qps || it == NN_vgatherpf0dpd || it == NN_vgatherpf0qpd ||
+           it == NN_vscatterpf0dps || it == NN_vscatterpf0qps || it == NN_vscatterpf0dpd || it == NN_vscatterpf0qpd ||
+           is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
+           is_rotate_insn(it) || is_var_rotate_insn(it) ||
+           is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
+           is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
+           is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
+           is_fp16_scalar_sqrt_insn(it) || is_fp16_scalar_misc_insn(it) ||
+           is_shift_double_insn(it) || is_multishift_insn(it) ||
+           is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
+           is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
+           is_mask_to_vec_insn(it) || is_conflict_insn(it) ||
+           is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
+           is_popcnt_insn(it) || is_lzcnt_insn(it) || is_gfni_insn(it) ||
+           is_pclmul_insn(it) || is_aes_insn(it) || is_sha_insn(it) || is_cache_ctrl_insn(it) ||
+           is_fp16_move_insn(it) ||
+           is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
+           is_ptest_insn(it) || is_pmaskmov_int_insn(it) ||
+           is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
+           is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
+           is_pmovsx_insn(it) || is_pmovzx_insn(it) || is_pmovwb_insn(it) ||
+           is_pmov_down_insn(it) || is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
+           is_insertps_insn(it) || it == NN_vsqrtsd;
+}
+
+// Instructions that write an opmask (k-register) destination and are routed to a
+// real handler in apply(); match() admits these via the is_mask_reg(Op1) gate.
+static bool is_cmp_to_mask_itype(uint16 it) {
+    return it == NN_vcmpps || it == NN_vcmppd || it == NN_vcmpss || it == NN_vcmpsd ||
+           it == NN_vcmpph || it == NN_vcmpsh ||
+           it == NN_vpcmpb || it == NN_vpcmpw || it == NN_vpcmpd || it == NN_vpcmpq ||
+           it == NN_vpcmpub || it == NN_vpcmpuw || it == NN_vpcmpud || it == NN_vpcmpuq ||
+           it == NN_vptestmb || it == NN_vptestmw || it == NN_vptestmd || it == NN_vptestmq ||
+           it == NN_vptestnmb || it == NN_vptestnmw || it == NN_vptestnmd || it == NN_vptestnmq ||
+           it == NN_vpshufbitqmb ||
+           it == NN_vfpclassps || it == NN_vfpclasspd || it == NN_vfpclassss ||
+           it == NN_vfpclasssd || it == NN_vfpclassph || it == NN_vfpclasssh ||
+           it == NN_vpmovb2m || it == NN_vpmovw2m || it == NN_vpmovd2m || it == NN_vpmovq2m ||
+           it == NN_vp2intersectd || it == NN_vp2intersectq;
+}
+
+// Full set of itypes the lifter dispatches to a handler (any operand form).
+static bool avx_supported_itype(uint16 it) {
+    return avx_match_itype_core(it)
+        || (it >= NN_kmovw && it <= NN_kunpckdq)  // k-register move/ALU/unpack
+        || is_cmp_to_mask_itype(it);
+}
+
+//-----------------------------------------------------------------------------
+// Coverage-closure instrumentation (gated by env vars; zero overhead otherwise).
+//   AVX_COV=<file>          append observed per-itype coverage at plugin term
+//   AVX_COV_MANIFEST=<file> dump the supported-itype manifest once at init
+// A supported itype that the corpus never feeds a memory *source* (and that is
+// not in the harness allowlist of register/imm-only forms) is a coverage hole.
+//-----------------------------------------------------------------------------
+static bool g_cov = false;
+static qstring g_cov_path;
+static std::map<uint16, uint8> g_cov_seen;  // itype -> bit0:seen  bit1:seen w/ src-mem
+
+static bool insn_has_src_mem(const insn_t &insn) {
+    return is_mem_op(insn.Op2) || is_mem_op(insn.Op3) || is_mem_op(insn.Op4);
+}
+
+static void cov_record(const insn_t &insn) {
+    uint8 b = 1;
+    if (insn_has_src_mem(insn))
+        b |= 2;
+    g_cov_seen[insn.itype] |= b;
+}
+
+static void cov_flush() {
+    if (!g_cov || g_cov_seen.empty())
+        return;
+    FILE *fp = qfopen(g_cov_path.c_str(), "a");
+    if (fp == nullptr)
+        return;
+    for (const auto &kv : g_cov_seen) {
+        const char *nm = PH.get_canon_mnem(kv.first);
+        qfprintf(fp, "%u\t%s\t%u\n", (unsigned) kv.first, nm ? nm : "?", (unsigned) kv.second);
+    }
+    qfclose(fp);
+    g_cov_seen.clear();
+}
+
+static void cov_dump_manifest() {
+    qstring path;
+    if (!qgetenv("AVX_COV_MANIFEST", &path) || path.empty())
+        return;
+    FILE *fp = qfopen(path.c_str(), "w");
+    if (fp == nullptr)
+        return;
+    for (int it = PH.instruc_start; it < PH.instruc_end; it++) {
+        if (!avx_supported_itype((uint16) it))
+            continue;
+        const char *nm = PH.get_canon_mnem((uint16) it);
+        qfprintf(fp, "%d\t%s\n", it, nm ? nm : "?");
+    }
+    qfclose(fp);
+}
+
+//-----------------------------------------------------------------------------
 // The microcode filter
 //-----------------------------------------------------------------------------
 struct ida_local AVXLifter : microcode_filter_t {
@@ -209,52 +345,7 @@ struct ida_local AVXLifter : microcode_filter_t {
             }
         }
 
-        bool m = is_compare_insn(it) || is_extract_insn(it) || is_conversion_insn(it) ||
-                 is_move_insn(it) || is_scalar_move(it) || is_bitwise_insn(it) ||
-                 is_math_insn(it) || is_scalar_math(it) || is_scalar_minmax(it) ||
-                 is_broadcast_insn(it) || is_blend_insn(it) || is_packed_compare_insn(it) ||
-                 is_packed_int_compare_insn(it) ||
-                 is_maskmov_insn(it) || is_misc_insn(it) ||
-                 is_horizontal_math(it) || is_dot_product(it) ||
-                 is_approx_insn(it) || is_scalar_approx_insn(it) ||
-                 is_round_insn(it) || is_scalar_round_insn(it) ||
-                 is_gather_insn(it) || is_fma_insn(it) || is_vzeroupper(it) ||
-                 is_extract_insert_insn(it) || is_movdup_insn(it) || is_unpack_insn(it) ||
-                 is_addsub_insn(it) || is_vpbroadcast_d_q(it) || is_vperm2_insn(it) ||
-                 is_permutex_insn(it) || is_permutex2_insn(it) || is_shuf_lane_insn(it) || is_ternary_logic_insn(it) ||
-                 it == NN_vblendmps || it == NN_vblendmpd || it == NN_vpblendmb ||
-                 it == NN_vpblendmw || it == NN_vpblendmd || it == NN_vpblendmq ||
-                 it == NN_vpbroadcastmb2q || it == NN_vpbroadcastmw2d ||
-                 it == NN_vbroadcastf32x2 || it == NN_vbroadcasti32x2 ||
-                 it == NN_vexp2ps || it == NN_vexp2pd ||
-                 it == NN_vrcp28ps || it == NN_vrcp28pd || it == NN_vrcp28ss || it == NN_vrcp28sd ||
-                 it == NN_vrsqrt28ps || it == NN_vrsqrt28pd || it == NN_vrsqrt28ss || it == NN_vrsqrt28sd ||
-                 it == NN_v4fmaddps || it == NN_v4fnmaddps || it == NN_v4fmaddss || it == NN_v4fnmaddss ||
-                 it == NN_vp4dpwssd || it == NN_vp4dpwssds ||
-                 it == NN_vcomish || it == NN_vucomish ||
-                 it == NN_vgatherpf0dps || it == NN_vgatherpf0qps || it == NN_vgatherpf0dpd || it == NN_vgatherpf0qpd ||
-                 it == NN_vscatterpf0dps || it == NN_vscatterpf0qps || it == NN_vscatterpf0dpd || it == NN_vscatterpf0qpd ||
-                 is_compress_insn(it) || is_expand_insn(it) || is_scatter_insn(it) ||
-                 is_rotate_insn(it) || is_var_rotate_insn(it) ||
-                 is_fp16_packed_math_insn(it) || is_fp16_scalar_math_insn(it) ||
-                 is_fp16_sqrt_insn(it) || is_fp16_fma_insn(it) ||
-                 is_fp16_fmaddsub_insn(it) || is_fp16_complex_insn(it) ||
-                 is_fp16_scalar_sqrt_insn(it) || is_fp16_scalar_misc_insn(it) ||
-                 is_shift_double_insn(it) || is_multishift_insn(it) ||
-                 is_getexp_insn(it) || is_getmant_insn(it) || is_fixupimm_insn(it) ||
-                 is_scalef_insn(it) || is_range_insn(it) || is_reduce_insn(it) ||
-                 is_mask_to_vec_insn(it) || is_conflict_insn(it) ||
-                 is_ifma_insn(it) || is_vnni_insn(it) || is_bf16_insn(it) ||
-                 is_popcnt_insn(it) || is_lzcnt_insn(it) || is_gfni_insn(it) ||
-                  is_pclmul_insn(it) || is_aes_insn(it) || is_sha_insn(it) || is_cache_ctrl_insn(it) ||
-                  is_fp16_move_insn(it) ||
-                  is_phsub_insn(it) || is_pack_insn(it) || is_sad_insn(it) ||
-                  is_ptest_insn(it) || is_pmaskmov_int_insn(it) ||
-                  is_fmaddsub_insn(it) || is_movmsk_insn(it) || is_movnt_insn(it) ||
-                 is_vpbroadcast_b_w(it) || is_pinsert_insn(it) ||
-                 is_pmovsx_insn(it) || is_pmovzx_insn(it) || is_pmovwb_insn(it) ||
-                 is_pmov_down_insn(it) || is_byte_shift_insn(it) || is_punpck_insn(it) || is_extractps_insn(it) ||
-                 is_insertps_insn(it) || it == NN_vsqrtsd;
+        bool m = avx_match_itype_core(it);
 
         if (m) {
             DEBUG_LOG("%a: MATCH itype=%u", ea, it);
@@ -268,6 +359,7 @@ struct ida_local AVXLifter : microcode_filter_t {
         uint16 it = cdg.insn.itype;
 
         if (g_dump_mc) g_cur_mba = cdg.mba;  // stash for the AVX_DUMP_MC interr dumper
+        if (g_cov) cov_record(cdg.insn);     // coverage-closure accounting
 
         TRACE_ENTER("apply");
 
@@ -719,12 +811,20 @@ static void MicroAvx_init() {
         msg("[AVXLifter] AVX_DUMP_MC set: microcode dumper installed\n");
     }
 
+    // Coverage-closure: record observed per-itype memory coverage / dump manifest.
+    g_cov = qgetenv("AVX_COV", &g_cov_path) && !g_cov_path.empty();
+    if (g_cov)
+        msg("[AVXLifter] AVX_COV set: recording itype coverage -> %s\n", g_cov_path.c_str());
+    cov_dump_manifest();
+
     g_avx = new AVXLifter();
     install_microcode_filter(g_avx, true);
 }
 
 static void MicroAvx_done() {
     if (!g_avx) return;
+
+    cov_flush();  // append this run's observed coverage before teardown
 
     msg("[AVXLifter] Terminating AVXLifter component\n");
 
