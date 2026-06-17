@@ -89,7 +89,11 @@ jobs:
         run: |
           mkdir build -Force
           cd build
-          cmake .. -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} -DIDASDK_VER=92
+          # Use Ninja with the MSVC environment set up by msvc-dev-cmd above.
+          # This avoids pinning to a specific Visual Studio generator, which
+          # breaks whenever the GitHub runner image bumps the VS version
+          # (e.g. windows-2025-vs2026 ships VS 18, not "Visual Studio 17 2022").
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DIDASDK_VER=92
         env:
           IDASDK: ${{ github.workspace }}/ida-sdk
 
