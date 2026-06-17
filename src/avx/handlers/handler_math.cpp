@@ -674,7 +674,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
 
     // Build base intrinsic name
     qstring base_name;
-    base_name.cat_sprnt(fmt, get_size_prefix(size));
+    base_name.nowarn_sprnt(fmt, get_size_prefix(size));
 
     // Transform to masked name if needed
     qstring iname = make_masked_intrinsic_name(base_name.c_str(), mask);

@@ -748,18 +748,17 @@ merror_t handle_v_shuf_lane(codegen_t &cdg) {
 }
 
 merror_t handle_vpermpd(codegen_t &cdg) {
-    // vpermpd is AVX2, YMM only usually.
-    // vpermpd ymm1, ymm2/m256, imm8
-    int size = YMM_SIZE;
-    if (!is_ymm_reg(cdg.insn.Op1)) {
-        // Should not happen for vpermpd, but check
-        size = XMM_SIZE;
+    // vpermpd has two encodings:
+    //   immediate form: vpermpd ymm/zmm {k}, ymm/zmm/m, imm8
+    //     -> _mm256_permute4x64_pd(a, imm8) / _mm512_permutex_pd(a, imm8)
+    //   variable form:  vpermpd ymm/zmm {k}, ymm/zmm(idx), ymm/zmm/m(a)
+    //     -> _mm256_permutexvar_pd(idx, a) / _mm512_permutexvar_pd(idx, a)
+    // Op2 is the index in the variable form and the source in the immediate form.
+    int size = get_vector_size(cdg.insn.Op1);
+    if (size != YMM_SIZE && size != ZMM_SIZE) {
+        return MERR_INSN;
     }
-
-    QASSERT(0xA0603, cdg.insn.Op3.type==o_imm);
-    uval_t imm8 = cdg.insn.Op3.value;
-    AvxOpLoader r(cdg, 1, cdg.insn.Op2);
-    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    bool is_imm = cdg.insn.Op3.type == o_imm;
 
     int elem_size = 8;
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, elem_size);
@@ -767,11 +766,62 @@ merror_t handle_vpermpd(codegen_t &cdg) {
         load_mask_operand(cdg, mask);
     }
 
+    tinfo_t ti = get_type_robust(size, false, true);    // __m256d / __m512d
+    tinfo_t ti_idx = get_type_robust(size, true, false); // __m256i / __m512i (index)
+
     qstring base_name;
-    base_name.cat_sprnt("_mm%s_permute4x64_pd", get_size_prefix(size));
+    if (is_imm) {
+        if (size == ZMM_SIZE)
+            base_name = "_mm512_permutex_pd";
+        else
+            base_name = "_mm256_permute4x64_pd";
+    } else {
+        base_name.cat_sprnt("_mm%s_permutexvar_pd", get_size_prefix(size));
+    }
     qstring iname = mask.has_mask ? make_masked_intrinsic_name(base_name.c_str(), mask) : base_name;
     AVXIntrinsic icall(&cdg, iname.c_str());
-    tinfo_t ti = get_type_robust(size, false, true);
+
+    if (size == ZMM_SIZE) {
+        // ZMM registers are not microcode-addressable; use helper read/write calls.
+        if (mask.has_mask) {
+            if (!mask.is_zeroing && !add_zmm_read_arg(cdg, icall, cdg.insn.Op1, ti)) {
+                return MERR_INSN;
+            }
+            icall.add_argument_mask(mask.mask_reg, mask.num_elements);
+        }
+
+        if (!is_imm) {
+            // permutexvar: idx (Op2, integer) comes first
+            if (!add_zmm_read_arg(cdg, icall, cdg.insn.Op2, ti_idx)) {
+                return MERR_INSN;
+            }
+        }
+
+        // source operand (Op3 for variable form, Op2 for immediate form)
+        const op_t &src = is_imm ? cdg.insn.Op2 : cdg.insn.Op3;
+        if (is_mem_op(src)) {
+            AvxOpLoader r(cdg, is_imm ? 1 : 2, src);
+            if (r.reg == mr_none) return MERR_INSN;
+            icall.add_argument_reg(r, ti);
+        } else if (!add_zmm_read_arg(cdg, icall, src, ti)) {
+            return MERR_INSN;
+        }
+
+        if (is_imm) {
+            icall.add_argument_imm(cdg.insn.Op3.value, BT_INT8);
+        }
+
+        mreg_t tmp = cdg.mba->alloc_kreg(size, false);
+        if (tmp == mr_none) return MERR_INSN;
+        icall.set_return_reg(tmp, ti);
+        if (icall.emit() == nullptr) return MERR_INSN;
+        if (!emit_zmm_write_call(cdg, cdg.insn.Op1, tmp, ti)) return MERR_INSN;
+        return MERR_OK;
+    }
+
+    // YMM (256-bit) path: registers ymm0-15 are directly representable.
+    mreg_t d = reg2mreg(cdg.insn.Op1.reg);
+    if (d == mr_none) return MERR_INSN;
 
     if (mask.has_mask) {
         if (!mask.is_zeroing) {
@@ -780,8 +830,18 @@ merror_t handle_vpermpd(codegen_t &cdg) {
         icall.add_argument_mask(mask.mask_reg, mask.num_elements);
     }
 
-    icall.add_argument_reg(r, ti);
-    icall.add_argument_imm(imm8, BT_INT8);
+    if (is_imm) {
+        AvxOpLoader a(cdg, 1, cdg.insn.Op2);
+        if (a.reg == mr_none) return MERR_INSN;
+        icall.add_argument_reg(a, ti);
+        icall.add_argument_imm(cdg.insn.Op3.value, BT_INT8);
+    } else {
+        mreg_t idx = reg2mreg(cdg.insn.Op2.reg);
+        AvxOpLoader a(cdg, 2, cdg.insn.Op3);
+        if (idx == mr_none || a.reg == mr_none) return MERR_INSN;
+        icall.add_argument_reg(idx, ti_idx);
+        icall.add_argument_reg(a, ti);
+    }
     icall.set_return_reg(d, ti);
     icall.emit();
 
@@ -2617,38 +2677,81 @@ merror_t handle_vpack(codegen_t &cdg) {
     return MERR_OK;
 }
 
-// vptest - logical compare
-// vptest ymm1, ymm2/m256
-// Note: vptest sets flags (ZF, CF), not a register destination
-// This is difficult to lift properly since IDA expects register destinations
-// For now, emit a NOP and let IDA handle the flag-setting behavior natively
+// vptest / vtestps / vtestpd only update the flags (ZF and CF); they do not
+// write a register. Model ZF and CF as the results of the matching testz/testc
+// intrinsics so the decompiler can recover the _mm{,256}_testz_*/_mm{,256}_testc_*
+// wrappers instead of treating an undefined flag as a phantom function argument.
+// (pcmicro.cpp spoils CF/ZF for these instructions when lifting natively.)
+// The helpers are pure, so the flag a particular caller does not consume is
+// removed by dead-code elimination.
+static void clear_flag(codegen_t &cdg, mreg_t flag) {
+    mop_t zero;
+    zero.make_number(0, 1);
+    mop_t dst(flag, 1);
+    cdg.emit(m_mov, &zero, nullptr, &dst);
+}
+
+static merror_t emit_test_flags(
+        codegen_t &cdg,
+        const char *zname,
+        const char *cname,
+        mreg_t a,
+        mreg_t b,
+        const tinfo_t &ti) {
+    tinfo_t ti_flag(BT_INT8);
+    {
+        AVXIntrinsic zcall(&cdg, zname);
+        zcall.call_info->flags |= FCI_PURE | FCI_NOSIDE;
+        zcall.add_argument_reg(a, ti);
+        zcall.add_argument_reg(b, ti);
+        zcall.set_return_reg(mr_zf, ti_flag);
+        if (zcall.emit() == nullptr) return MERR_INSN;
+    }
+    {
+        AVXIntrinsic ccall(&cdg, cname);
+        ccall.call_info->flags |= FCI_PURE | FCI_NOSIDE;
+        ccall.add_argument_reg(a, ti);
+        ccall.add_argument_reg(b, ti);
+        ccall.set_return_reg(mr_cf, ti_flag);
+        if (ccall.emit() == nullptr) return MERR_INSN;
+    }
+    // vtest/vptest clear SF, OF, PF (and AF). Define them too so they are not
+    // mistaken for function inputs.
+    clear_flag(cdg, mr_sf);
+    clear_flag(cdg, mr_of);
+    clear_flag(cdg, mr_pf);
+    return MERR_OK;
+}
+
+// vptest xmm/ymm, xmm/ymm/m -> _mm{,256}_testz_si128/256 (ZF), _mm..._testc (CF)
 merror_t handle_vptest(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t a = reg2mreg(cdg.insn.Op1.reg);
     AvxOpLoader b(cdg, 1, cdg.insn.Op2);
+    if (a == mr_none || b.reg == mr_none) return MERR_INSN;
 
-    AVXIntrinsic icall(&cdg, size == YMM_SIZE ? "__vptest256" : "__vptest128");
+    const char *suf = size == YMM_SIZE ? "si256" : "si128";
+    qstring zname, cname;
+    zname.cat_sprnt("_mm%s_testz_%s", get_size_prefix(size), suf);
+    cname.cat_sprnt("_mm%s_testc_%s", get_size_prefix(size), suf);
     tinfo_t ti = get_type_robust(size, true, false);
-    icall.add_argument_reg(a, ti);
-    icall.add_argument_reg(b, ti);
-    icall.emit_void();
-    return MERR_OK;
+    return emit_test_flags(cdg, zname.c_str(), cname.c_str(), a, b, ti);
 }
 
+// vtestps/vtestpd xmm/ymm, xmm/ymm/m -> _mm{,256}_testz_ps/pd (ZF), _testc (CF)
 merror_t handle_vtest_ps_pd(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vtestpd);
     mreg_t a = reg2mreg(cdg.insn.Op1.reg);
     AvxOpLoader b(cdg, 1, cdg.insn.Op2);
+    if (a == mr_none || b.reg == mr_none) return MERR_INSN;
 
-    qstring name;
-    name.cat_sprnt("__vtest%s_%s", get_size_prefix(size), is_double ? "pd" : "ps");
-    AVXIntrinsic icall(&cdg, name.c_str());
+    const char *suf = is_double ? "pd" : "ps";
+    qstring zname, cname;
+    zname.cat_sprnt("_mm%s_testz_%s", get_size_prefix(size), suf);
+    cname.cat_sprnt("_mm%s_testc_%s", get_size_prefix(size), suf);
     tinfo_t ti = get_type_robust(size, false, is_double);
-    icall.add_argument_reg(a, ti);
-    icall.add_argument_reg(b, ti);
-    icall.emit_void();
-    return MERR_OK;
+    return emit_test_flags(cdg, zname.c_str(), cname.c_str(), a, b, ti);
 }
 
 merror_t handle_vphminposuw(codegen_t &cdg) {

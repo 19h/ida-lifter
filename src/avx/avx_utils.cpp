@@ -19,7 +19,7 @@ qstring make_intrinsic_name(const char *fmt, int op_size) {
     const char *prefix = "";
     if (op_size == ZMM_SIZE) prefix = "512";
     else if (op_size == YMM_SIZE) prefix = "256";
-    n.cat_sprnt(fmt, prefix);
+    n.nowarn_sprnt(fmt, prefix);
     return n;
 }
 

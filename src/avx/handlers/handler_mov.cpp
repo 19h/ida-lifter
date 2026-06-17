@@ -363,7 +363,7 @@ merror_t handle_v_mov_ps_dq(codegen_t &cdg) {
 
         auto build_mask_name = [&](const char *base) {
             qstring name;
-            name.cat_sprnt(base, prefix, mask_suffix, elem_size * 8);
+            name.nowarn_sprnt(base, prefix, mask_suffix, elem_size * 8);
             return name;
         };
 
