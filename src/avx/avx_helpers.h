@@ -44,6 +44,14 @@ inline const char *get_size_prefix(int size) {
 
 inline int get_vector_bits(int size) { return size * 8; }
 
+// Allocate a temporary kreg that may hold a full vector (YMM=32, ZMM=64).
+// Such widths exceed alloc_kreg's size check (max 16) and would fire INTERR
+// 50421, so allocate them with check_size disabled. Returns mr_none on
+// failure, like alloc_kreg.
+inline mreg_t alloc_vec_kreg(codegen_t &cdg, int size) {
+    return cdg.mba->alloc_kreg(size, false);
+}
+
 bool is_avx512_reg(const op_t &op);
 
 bool is_mask_reg(const op_t &op);

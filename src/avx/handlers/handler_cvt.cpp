@@ -55,6 +55,7 @@ static bool previous_insn_is_zmm_call(ea_t ea) {
 merror_t handle_vcvtdq2ps(codegen_t &cdg) {
     int op_size = get_op_size(cdg.insn);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtepi32_ps", op_size);
@@ -73,11 +74,17 @@ merror_t handle_vcvtsi2fp(codegen_t &cdg) {
     int dst_size = (cdg.insn.itype == NN_vcvtsi2sd) ? DOUBLE_SIZE : FLOAT_SIZE;
 
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t t_vec = cdg.mba->alloc_kreg(XMM_SIZE);
+    if (t_vec == mr_none) return MERR_INSN;
     mreg_t t_i2f = cdg.mba->alloc_kreg(src_size);
+    if (t_i2f == mr_none) {
+        cdg.mba->free_kreg(t_vec, XMM_SIZE);
+        return MERR_INSN;
+    }
 
     cdg.emit(m_mov, XMM_SIZE, l, 0, t_vec, 0);
     cdg.emit(m_i2f, src_size, r, 0, t_i2f, 0);
@@ -94,12 +101,14 @@ merror_t handle_vcvtsi2fp(codegen_t &cdg) {
 merror_t handle_vcvtps2pd(codegen_t &cdg) {
     int src128 = is_xmm_reg(cdg.insn.Op1) ? QWORD_SIZE : XMM_SIZE; // element block
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t src = r;
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op2) && src128 == QWORD_SIZE) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src_mop(r.reg, QWORD_SIZE);
         mop_t dst_mop(t_mem, XMM_SIZE);
         dst_mop.set_udt();
@@ -145,6 +154,7 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
     }
 
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, dst_size);
     if (mask.has_mask) {
@@ -167,6 +177,7 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src_mop(r.reg, src_size);
             mop_t dst_mop(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -190,6 +201,7 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
     }
 
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
+    if (t == mr_none) return MERR_INSN;
     cdg.emit(m_mov, XMM_SIZE, l, 0, t, 0);
     cdg.emit(m_f2f, new mop_t(r, src_size), nullptr, new mop_t(t, dst_size));
     cdg.emit(m_mov, XMM_SIZE, t, 0, d, 0);
@@ -203,6 +215,7 @@ merror_t handle_vcvtfp2fp(codegen_t &cdg) {
 merror_t handle_vcvtpd2ps(codegen_t &cdg) {
     int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtpd_ps", src_size);
@@ -219,6 +232,7 @@ merror_t handle_vcvtpd2ps(codegen_t &cdg) {
 merror_t handle_vcvt_ps2dq(codegen_t &cdg, bool trunc) {
     int op_size = get_op_size(cdg.insn);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *iname = (op_size == YMM_SIZE)
@@ -237,6 +251,7 @@ merror_t handle_vcvt_ps2dq(codegen_t &cdg, bool trunc) {
 merror_t handle_vcvt_pd2dq(codegen_t &cdg, bool trunc) {
     int src_size = (get_dtype_size(cdg.insn.Op2.dtype) == 32) ? YMM_SIZE : XMM_SIZE;
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = trunc
@@ -260,12 +275,14 @@ merror_t handle_vcvtdq2pd(codegen_t &cdg) {
     int src_size = dst_size / 2;  // Source is half the size (ints are 4 bytes, doubles are 8)
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t src = r;
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op2) && src_size < XMM_SIZE) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src_mop(r.reg, src_size);
         mop_t dst_mop(t_mem, XMM_SIZE);
         dst_mop.set_udt();
@@ -290,6 +307,7 @@ merror_t handle_vcvtdq2pd(codegen_t &cdg) {
 merror_t handle_vmxcsr(codegen_t &cdg) {
     if (cdg.insn.itype == NN_vldmxcsr) {
         AvxOpLoader src(cdg, 0, cdg.insn.Op1);
+        if (!src.ok()) return MERR_INSN;
         AVXIntrinsic icall(&cdg, "_mm_setcsr");
         icall.add_argument_reg(src, BT_INT32);
         icall.emit_void();
@@ -298,6 +316,7 @@ merror_t handle_vmxcsr(codegen_t &cdg) {
 
     if (cdg.insn.itype == NN_vstmxcsr) {
         mreg_t tmp = cdg.mba->alloc_kreg(DWORD_SIZE);
+        if (tmp == mr_none) return MERR_INSN;
         AVXIntrinsic icall(&cdg, "_mm_getcsr");
         icall.set_return_reg_basic(tmp, BT_INT32);
         icall.emit();
@@ -313,6 +332,7 @@ merror_t handle_vmxcsr(codegen_t &cdg) {
 merror_t handle_vcvt_ps2udq(codegen_t &cdg, bool trunc) {
     int op_size = get_op_size(cdg.insn);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = trunc
@@ -336,6 +356,7 @@ merror_t handle_vcvt_pd2udq(codegen_t &cdg, bool trunc) {
 
     int dst_size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = trunc
@@ -354,6 +375,7 @@ merror_t handle_vcvt_pd2udq(codegen_t &cdg, bool trunc) {
 merror_t handle_vcvt_udq2ps(codegen_t &cdg) {
     int op_size = get_op_size(cdg.insn);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtepu32_ps", op_size);
@@ -372,6 +394,7 @@ merror_t handle_vcvt_udq2pd(codegen_t &cdg) {
     int src_size = dst_size / 2;
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname = make_intrinsic_name("_mm%s_cvtepu32_pd", dst_size);
@@ -392,6 +415,7 @@ merror_t handle_vcvt_pd2qq(codegen_t &cdg, bool trunc, bool is_unsigned) {
     if (src_size == 0) src_size = dst_size;
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *fmt = nullptr;
@@ -418,6 +442,7 @@ merror_t handle_vcvt_ps2qq(codegen_t &cdg, bool trunc, bool is_unsigned) {
     if (src_size == 0) src_size = dst_size / 2;
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *fmt = nullptr;
@@ -444,6 +469,7 @@ merror_t handle_vcvt_qq2fp(codegen_t &cdg, bool is_double, bool is_unsigned) {
     if (src_size == 0) src_size = is_double ? dst_size : dst_size * 2;
 
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *fmt = nullptr;
@@ -479,6 +505,7 @@ merror_t handle_vcvt_fp16(codegen_t &cdg) {
     }
 
     AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+    if (!src.ok()) return MERR_INSN;
     int src_size = src.size > 0 ? src.size : get_vector_size(cdg.insn.Op2);
     if (src_size == 0) {
         src_size = XMM_SIZE;
@@ -595,7 +622,8 @@ merror_t handle_vcvt_fp16(codegen_t &cdg) {
         icall.emit();
         if (dst_size == XMM_SIZE) clear_upper(cdg, d);
     } else if (is_mem_op(cdg.insn.Op1)) {
-        mreg_t tmp = cdg.mba->alloc_kreg(dst_size);
+        mreg_t tmp = alloc_vec_kreg(cdg, dst_size);
+        if (tmp == mr_none) return MERR_INSN;
         icall.set_return_reg(tmp, ti_dst);
         icall.emit();
         store_operand_hack(cdg, 0, mop_t(tmp, dst_size));
@@ -628,6 +656,7 @@ merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
         mreg_t d = reg2mreg(cdg.insn.Op1.reg);
         if (d == mr_none) return MERR_INSN;
         AvxOpLoader s(cdg, 1, cdg.insn.Op2);
+        if (!s.ok()) return MERR_INSN;
         qstring nm; nm.cat_sprnt("_mm_%s%d", e.base, gsz == 8 ? 64 : 32);
         AVXIntrinsic ic(&cdg, nm.c_str());
         // Op2 may be a scalar m16/m32/m64 memory load; widen to XMM width so the
@@ -652,6 +681,7 @@ merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
         mreg_t a = reg2mreg(cdg.insn.Op2.reg);
         if (d == mr_none || a == mr_none) return MERR_INSN;
         AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        if (!b.ok()) return MERR_INSN;
         qstring nm; nm.cat_sprnt("_mm_%s%d_%s", e.pre, gsz == 8 ? 64 : 32, e.suf);
         AVXIntrinsic ic(&cdg, nm.c_str());
         ic.add_argument_reg(a, get_type_robust(XMM_SIZE, false, e.dst_double));
@@ -676,6 +706,7 @@ merror_t handle_vcvt_scalar_ext(codegen_t &cdg) {
         mreg_t a = reg2mreg(cdg.insn.Op2.reg);
         if (d == mr_none || a == mr_none) return MERR_INSN;
         AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        if (!b.ok()) return MERR_INSN;
         AVXIntrinsic ic(&cdg, e.name);
         ic.add_argument_reg(a, get_type_robust(XMM_SIZE, false, e.a_double));
         // Op3 may be a scalar m16/m32/m64 memory load; widen to XMM width so the

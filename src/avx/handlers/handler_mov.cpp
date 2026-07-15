@@ -25,7 +25,9 @@ merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            if (!r_in.ok()) return MERR_INSN;
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src(r_in.reg, data_size);
             mop_t dst(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -66,6 +68,7 @@ merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
             mreg_t xmm_reg = reg2mreg(cdg.insn.Op1.reg);
 
             AvxOpLoader src_loader(cdg, 1, cdg.insn.Op2);
+            if (!src_loader.ok()) return MERR_INSN;
             mreg_t src_reg = src_loader.reg;
 
             // Move the loaded float value to the lower part of XMM
@@ -90,6 +93,7 @@ merror_t handle_vmov_ss_sd(codegen_t &cdg, int data_size) {
     QASSERT(0xA0302, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2) && is_xmm_reg(cdg.insn.Op3));
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
+    if (t == mr_none) return MERR_INSN;
     cdg.emit(m_mov, XMM_SIZE, reg2mreg(cdg.insn.Op2.reg), 0, t, 0);
     cdg.emit(m_f2f, data_size, reg2mreg(cdg.insn.Op3.reg), 0, t, 0);
     cdg.emit(m_mov, XMM_SIZE, t, 0, d, 0);
@@ -131,7 +135,9 @@ merror_t handle_vmov_sh(codegen_t &cdg) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            if (!r_in.ok()) return MERR_INSN;
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src(r_in.reg, WORD_SIZE);
             mop_t dst(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -172,7 +178,9 @@ merror_t handle_vmov_sh(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, WORD_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -210,6 +218,7 @@ merror_t handle_vmovw(codegen_t &cdg) {
 
         if (is_mem_op(cdg.insn.Op2)) {
             AvxOpLoader src_loader(cdg, 1, cdg.insn.Op2);
+            if (!src_loader.ok()) return MERR_INSN;
             src = src_loader.reg;
         } else {
             src = reg2mreg(cdg.insn.Op2.reg);
@@ -262,12 +271,14 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
         mreg_t xmm_reg = reg2mreg(cdg.insn.Op1.reg);
 
         AvxOpLoader l_loader(cdg, 1, cdg.insn.Op2);
+        if (!l_loader.ok()) return MERR_INSN;
         mreg_t l = l_loader.reg;
 
         // In 32-bit mode, don't extend to YMM (causes INTERR 50757)
         // Just zero-extend to XMM size
         if (!inf_is_64bit()) {
             mreg_t tmp = cdg.mba->alloc_kreg(data_size);
+            if (tmp == mr_none) return MERR_INSN;
             cdg.emit(m_mov, data_size, l, 0, tmp, 0);
 
             mop_t src(tmp, data_size);
@@ -287,6 +298,7 @@ merror_t handle_vmov(codegen_t &cdg, int data_size) {
         if (ymm_reg == mr_none) return MERR_INSN;
 
         mreg_t tmp = cdg.mba->alloc_kreg(data_size);
+        if (tmp == mr_none) return MERR_INSN;
         cdg.emit(m_mov, data_size, l, 0, tmp, 0);
 
         mop_t src(tmp, data_size);
@@ -593,6 +605,7 @@ merror_t handle_v_compress(codegen_t &cdg) {
         // Register destination: compress into register
         mreg_t dst = reg2mreg(cdg.insn.Op1.reg);
         AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+        if (!src.ok()) return MERR_INSN;
 
         qstring iname;
         if (mask.is_zeroing) {
@@ -823,6 +836,7 @@ merror_t handle_v_gather(codegen_t &cdg) {
 
     if (disp != 0) {
         t_base = cdg.mba->alloc_kreg(8);
+        if (t_base == mr_none) return MERR_INSN;
         mop_t l(base, 8);
         mop_t r;
         r.make_number(disp, 8);
@@ -839,7 +853,11 @@ merror_t handle_v_gather(codegen_t &cdg) {
         mreg_t src_merge = dst;
         mreg_t zero = mr_none;
         if (mask_info.is_zeroing) {
-            zero = cdg.mba->alloc_kreg(size);
+            zero = alloc_vec_kreg(cdg, size);
+            if (zero == mr_none) {
+                if (t_base != mr_none) cdg.mba->free_kreg(t_base, 8);
+                return MERR_INSN;
+            }
             const char *zero_name = nullptr;
             if (is_int) {
                 zero_name = (size == ZMM_SIZE) ? "_mm512_setzero_si512"
@@ -959,6 +977,7 @@ merror_t handle_v_scatter(codegen_t &cdg) {
     mreg_t t_base = mr_none;
     if (disp != 0) {
         t_base = cdg.mba->alloc_kreg(8);
+        if (t_base == mr_none) return MERR_INSN;
         mop_t l(base, 8);
         mop_t r;
         r.make_number(disp, 8);

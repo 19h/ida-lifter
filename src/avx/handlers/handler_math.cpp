@@ -21,6 +21,7 @@ merror_t handle_v_math_ss_sd(codegen_t &cdg, int elem_size) {
         r = d;
     } else {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         r = r_in;
     }
 
@@ -90,8 +91,10 @@ merror_t handle_v_minmax_ss_sd(codegen_t &cdg) {
     if (is_mem_op(cdg.insn.Op3)) {
         // Load scalar from memory
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         // Zero-extend to XMM size for use in intrinsic
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -141,6 +144,7 @@ merror_t handle_v_math_ph(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *op = nullptr;
@@ -203,7 +207,9 @@ merror_t handle_v_math_sh(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, WORD_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -248,6 +254,7 @@ merror_t handle_v_math_sh(codegen_t &cdg) {
 merror_t handle_v_sqrt_ph(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, 2);
@@ -283,6 +290,7 @@ merror_t handle_v_fma_ph(codegen_t &cdg) {
     mreg_t op1 = reg2mreg(cdg.insn.Op1.reg);
     mreg_t op2 = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader op3_in(cdg, 2, cdg.insn.Op3);
+    if (!op3_in.ok()) return MERR_INSN;
 
     int order = 0;
     bool is_scalar = false;
@@ -338,6 +346,7 @@ merror_t handle_v_fma_ph(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(op3_in, WORD_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -379,6 +388,7 @@ merror_t handle_v_complex_ph(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
     AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+    if (!b.ok()) return MERR_INSN;
 
     const char *op = nullptr;
     bool is_ternary = false;
@@ -720,6 +730,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
     }
 
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -747,6 +758,7 @@ merror_t handle_v_math_p(codegen_t &cdg) {
 merror_t handle_v_abs(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *suffix = nullptr;
@@ -778,6 +790,7 @@ merror_t handle_v_sign(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     const char *suffix = nullptr;
@@ -811,6 +824,7 @@ merror_t handle_v_fma(codegen_t &cdg) {
     mreg_t op2 = reg2mreg(cdg.insn.Op2.reg); // Src2
 
     AvxOpLoader op3_in(cdg, 2, cdg.insn.Op3); // Src3
+    if (!op3_in.ok()) return MERR_INSN;
 
     const char *op = nullptr;
     const char *type = nullptr;
@@ -889,6 +903,7 @@ merror_t handle_v_fma(codegen_t &cdg) {
         // For scalar FMA with memory operand, zero-extend the loaded scalar to XMM size
         // Reuse elem_size for scalar load size
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(op3_in, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -943,6 +958,7 @@ merror_t handle_v_ifma(codegen_t &cdg) {
     mreg_t acc = d;
     mreg_t a = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+    if (!b.ok()) return MERR_INSN;
 
     const char *op = nullptr;
     switch (cdg.insn.itype) {
@@ -990,6 +1006,7 @@ merror_t handle_v_vnni(codegen_t &cdg) {
     mreg_t acc = d;
     mreg_t a = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+    if (!b.ok()) return MERR_INSN;
 
     const char *op = nullptr;
     switch (cdg.insn.itype) {
@@ -1042,6 +1059,7 @@ merror_t handle_v_bf16(codegen_t &cdg) {
         mreg_t acc = d;
         mreg_t a = reg2mreg(cdg.insn.Op2.reg);
         AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        if (!b.ok()) return MERR_INSN;
 
         MaskInfo mask = MaskInfo::from_insn(cdg.insn, 4);
         if (mask.has_mask) {
@@ -1081,7 +1099,9 @@ merror_t handle_v_bf16(codegen_t &cdg) {
         int size = get_vector_size(cdg.insn.Op1);
         mreg_t d = reg2mreg(cdg.insn.Op1.reg);
         AvxOpLoader a(cdg, 1, cdg.insn.Op2);
+        if (!a.ok()) return MERR_INSN;
         AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+        if (!b.ok()) return MERR_INSN;
 
         MaskInfo mask = MaskInfo::from_insn(cdg.insn, 2);
         if (mask.has_mask) {
@@ -1118,6 +1138,7 @@ merror_t handle_v_bf16(codegen_t &cdg) {
                                                 : get_vector_size(cdg.insn.Op2);
         mreg_t d = reg2mreg(cdg.insn.Op1.reg);
         AvxOpLoader src(cdg, 1, cdg.insn.Op2);
+        if (!src.ok()) return MERR_INSN;
 
         MaskInfo mask = MaskInfo::from_insn(cdg.insn, 2);
         if (mask.has_mask) {
@@ -1153,10 +1174,12 @@ merror_t handle_v_bf16(codegen_t &cdg) {
 merror_t handle_vsqrtss(codegen_t &cdg) {
     QASSERT(0xA0600, is_xmm_reg(cdg.insn.Op1) && is_xmm_reg(cdg.insn.Op2));
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
+    if (t == mr_none) return MERR_INSN;
     cdg.emit(m_mov, XMM_SIZE, l, 0, t, 0);
 
     AVXIntrinsic icall(&cdg, "fsqrt");
@@ -1180,7 +1203,9 @@ merror_t handle_vsqrt_sh(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, WORD_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1225,6 +1250,7 @@ merror_t handle_vsqrt_ps_pd(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     bool is_double = (cdg.insn.itype == NN_vsqrtpd);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname;
@@ -1246,6 +1272,7 @@ merror_t handle_v_hmath(codegen_t &cdg) {
 
     int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -1296,6 +1323,7 @@ merror_t handle_v_dot(codegen_t &cdg) {
 
     int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
@@ -1322,6 +1350,7 @@ merror_t handle_v_dot(codegen_t &cdg) {
 merror_t handle_vrcp_rsqrt(codegen_t &cdg) {
     int size = get_vector_size(cdg.insn.Op1);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     bool is_half = (cdg.insn.itype == NN_vrcpph || cdg.insn.itype == NN_vrsqrtph);
@@ -1374,6 +1403,7 @@ merror_t handle_vround(codegen_t &cdg) {
     bool is_double = (cdg.insn.itype == NN_vroundpd || cdg.insn.itype == NN_vrndscalepd);
     bool is_scale = (cdg.insn.itype == NN_vrndscaleps || cdg.insn.itype == NN_vrndscalepd || is_half);
     AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     // Op3 is the rounding mode immediate
@@ -1454,7 +1484,9 @@ merror_t handle_v_getexp(codegen_t &cdg) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            if (!r_in.ok()) return MERR_INSN;
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src(r_in.reg, elem_size);
             mop_t dst(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -1475,6 +1507,7 @@ merror_t handle_v_getexp(codegen_t &cdg) {
         if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     } else {
         AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        if (!r.ok()) return MERR_INSN;
         icall.add_argument_reg(r, ti);
         icall.set_return_reg(d, ti);
         icall.emit();
@@ -1533,7 +1566,9 @@ merror_t handle_v_getmant(codegen_t &cdg) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            if (!r_in.ok()) return MERR_INSN;
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src(r_in.reg, elem_size);
             mop_t dst(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -1555,6 +1590,7 @@ merror_t handle_v_getmant(codegen_t &cdg) {
         if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     } else {
         AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        if (!r.ok()) return MERR_INSN;
         icall.add_argument_reg(r, ti);
         icall.add_argument_imm(imm, BT_INT32);
         icall.set_return_reg(d, ti);
@@ -1604,7 +1640,9 @@ merror_t handle_v_fixupimm(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1615,6 +1653,7 @@ merror_t handle_v_fixupimm(codegen_t &cdg) {
         r = t_mem;
     } else {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         r = r_in.reg;
     }
 
@@ -1669,7 +1708,9 @@ merror_t handle_v_scalef(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1680,6 +1721,7 @@ merror_t handle_v_scalef(codegen_t &cdg) {
         r = t_mem;
     } else {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         r = r_in.reg;
     }
 
@@ -1733,7 +1775,9 @@ merror_t handle_v_range(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_scalar && is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1744,6 +1788,7 @@ merror_t handle_v_range(codegen_t &cdg) {
         r = t_mem;
     } else {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         r = r_in.reg;
     }
 
@@ -1808,7 +1853,9 @@ merror_t handle_v_reduce(codegen_t &cdg) {
         mreg_t t_mem = mr_none;
         if (is_mem_op(cdg.insn.Op3)) {
             AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+            if (!r_in.ok()) return MERR_INSN;
             t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+            if (t_mem == mr_none) return MERR_INSN;
             mop_t src(r_in.reg, elem_size);
             mop_t dst(t_mem, XMM_SIZE);
             if (XMM_SIZE > 8) {
@@ -1830,6 +1877,7 @@ merror_t handle_v_reduce(codegen_t &cdg) {
         if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
     } else {
         AvxOpLoader r(cdg, 1, cdg.insn.Op2);
+        if (!r.ok()) return MERR_INSN;
         icall.add_argument_reg(r, ti);
         icall.add_argument_imm(imm, BT_INT32);
         icall.set_return_reg(d, ti);
@@ -1853,8 +1901,10 @@ merror_t handle_vrcp_rsqrt_ss(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         // Zero-extend scalar to XMM for intrinsic
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, FLOAT_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1932,7 +1982,9 @@ merror_t handle_vround_ss_sd(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, elem_size);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -1995,7 +2047,9 @@ merror_t handle_vsqrtsd(codegen_t &cdg) {
     mreg_t t_mem = mr_none;
     if (is_mem_op(cdg.insn.Op3)) {
         AvxOpLoader r_in(cdg, 2, cdg.insn.Op3);
+        if (!r_in.ok()) return MERR_INSN;
         t_mem = cdg.mba->alloc_kreg(XMM_SIZE);
+        if (t_mem == mr_none) return MERR_INSN;
         mop_t src(r_in.reg, DOUBLE_SIZE);
         mop_t dst(t_mem, XMM_SIZE);
         if (XMM_SIZE > 8) {
@@ -2010,6 +2064,10 @@ merror_t handle_vsqrtsd(codegen_t &cdg) {
 
     // Copy upper bits from src2, compute sqrt on low element
     mreg_t t = cdg.mba->alloc_kreg(XMM_SIZE);
+    if (t == mr_none) {
+        if (t_mem != mr_none) cdg.mba->free_kreg(t_mem, XMM_SIZE);
+        return MERR_INSN;
+    }
     cdg.emit(m_mov, XMM_SIZE, l, 0, t, 0);
 
     AVXIntrinsic icall(&cdg, "fsqrt");
@@ -2031,6 +2089,7 @@ merror_t handle_vaddsubps_pd(codegen_t &cdg) {
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     int elem_size = is_double ? 8 : 4;
@@ -2075,6 +2134,7 @@ merror_t handle_vsad(codegen_t &cdg) {
 
     mreg_t l = reg2mreg(cdg.insn.Op2.reg);
     AvxOpLoader r(cdg, 2, cdg.insn.Op3);
+    if (!r.ok()) return MERR_INSN;
     mreg_t d = reg2mreg(cdg.insn.Op1.reg);
 
     qstring iname;
@@ -2126,6 +2186,7 @@ merror_t handle_v_fp16_scalar_misc(codegen_t &cdg) {
     mreg_t a = reg2mreg(cdg.insn.Op2.reg);
     if (d == mr_none || a == mr_none) return MERR_INSN;
     AvxOpLoader b(cdg, 2, cdg.insn.Op3);
+    if (!b.ok()) return MERR_INSN;
 
     MaskInfo mask = MaskInfo::from_insn(cdg.insn, WORD_SIZE);
     if (mask.has_mask) load_mask_operand(cdg, mask);

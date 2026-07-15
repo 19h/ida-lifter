@@ -29,13 +29,16 @@ struct AvxOpLoader {
             // Use load_operand_udt for large operands (> 8 bytes) to set UDT flag
             // This is required for AVX-512 64-byte operands to pass the verifier
             reg = load_operand_udt(cdg, op_idx, size);
-            is_kreg = true;
+            is_kreg = (reg != mr_none);
         } else {
             reg = reg2mreg(op.reg);
             is_kreg = false;
             size = 0;
         }
     }
+
+    // True if the operand was loaded successfully
+    bool ok() const { return reg != mr_none; }
 
     // Do not free kregs - they are used in emitted microcode
     ~AvxOpLoader() = default;

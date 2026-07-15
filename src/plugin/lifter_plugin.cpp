@@ -90,19 +90,25 @@ static ssize_t idaapi hexrays_callback(void *, hexrays_event_t event, va_list va
 // At that point init_hexrays_plugin() fails and the plugin would bail out,
 // leaving the microcode filters uninstalled (everything falls back to __asm).
 //
-// PLUGIN_MULTI plugmods are instantiated per-database, after the decompiler is
-// available, so init_hexrays_plugin() succeeds and the filters install. This
-// mirrors the shipped 'deobf' plugin.
+// PLUGIN_MULTI plugmods are instantiated per-database. The decompiler is
+// normally available then; startup-test ordering can still expose the plugmod
+// first, so initialize() defers and run() retries activation. This mirrors the
+// shipped 'deobf' plugin's per-database lifetime.
 //--------------------------------------------------------------------------
 
 struct lifter_plugmod_t : public plugmod_t {
     bool hexrays_ready = false;
+    bool components_ready = false;
 
-    lifter_plugmod_t() {
-        if (!init_hexrays_plugin()) {
-            // No decompiler for this database: stay inert. The plugmod is kept
-            // around but installs nothing.
-            return;
+    bool initialize() {
+        if (hexrays_ready) {
+            return components_ready;
+        }
+        if (get_hexdsp() == nullptr && !init_hexrays_plugin()) {
+            // The decompiler may not be initialized yet. run() retries after
+            // database-open scripts have had a chance to load it.
+            msg("[lifter] Hex-Rays unavailable; initialization deferred\n");
+            return false;
         }
         hexrays_ready = true;
 
@@ -110,8 +116,14 @@ struct lifter_plugmod_t : public plugmod_t {
         install_hexrays_callback(hexrays_callback, this);
 
         int initialized = component_registry_t::init_all();
+        components_ready = initialized == (int) component_registry_t::get_count();
         msg("[lifter] Plugin ready (%d/%d components initialized)\n",
             initialized, (int) component_registry_t::get_count());
+        return components_ready;
+    }
+
+    lifter_plugmod_t() {
+        initialize();
     }
 
     virtual ~lifter_plugmod_t() {
@@ -128,7 +140,7 @@ struct lifter_plugmod_t : public plugmod_t {
     }
 
     virtual bool idaapi run(size_t) override {
-        return false;
+        return initialize();
     }
 };
 
