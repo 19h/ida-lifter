@@ -16,6 +16,9 @@
 The SIMD becomes legible. The algorithms become obvious.
 </h5>
 
+> [!NOTE]
+> **Bundled starting with IDA 9.5:** lifter ships with IDA by default.
+
 ## Before & After
 
 **Without plugin:**
