@@ -303,17 +303,21 @@ static merror_t handle_vmread(codegen_t &cdg) {
         icall.set_return_reg(dst_reg, uint_type);
         icall.emit();
     } else {
-        // vmread [mem], encoding -> __vmread_mem(&dest, encoding)
+        // vmread [mem], encoding -> [mem] = __vmread_mem(encoding)
         mreg_t addr = load_mem_address(cdg, 0);
         if (addr == mr_none) {
             VMX_ERROR_LOG("%a: Failed to load address for vmread", insn.ea);
             return MERR_INSN;
         }
 
+		mreg_t value = cdg.mba->alloc_kreg(uint_type.get_size());
+
         VMXIntrinsic icall(&cdg, "__vmread");
-        icall.add_argument_reg(addr, get_ptr_type());
         icall.add_argument_reg(encoding_reg, uint_type);
-        icall.emit_void();
+        icall.set_return_reg(value, uint_type);
+        icall.emit();
+
+		cdg.store_operand(0, mop_t(value, (int)uint_type.get_size()));
     }
     return MERR_OK;
 }
